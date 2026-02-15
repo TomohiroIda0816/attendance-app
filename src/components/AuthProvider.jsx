@@ -1,112 +1,99 @@
-﻿import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 
-const AuthContext = createContext({});
+var AuthContext = createContext({});
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
-  const [profile, setProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
+  var _s = useState(null), user = _s[0], setUser = _s[1];
+  var _p = useState(null), profile = _p[0], setProfile = _p[1];
+  var _l = useState(true), loading = _l[0], setLoading = _l[1];
 
-  const fetchProfile = async (userId) => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-      if (!error && data) setProfile(data);
-      return data;
-    } catch (e) {
-      return null;
-    }
-  };
+  function fetchProfile(userId) {
+    return supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single()
+      .then(function(res) {
+        if (!res.error && res.data) setProfile(res.data);
+        return res.data;
+      })
+      .catch(function() { return null; });
+  }
 
   useEffect(function() {
-    var timer = setTimeout(function() { setLoading(false); }, 3000);
+    var done = false;
+    var timer = setTimeout(function() {
+      if (!done) { done = true; setLoading(false); }
+    }, 3000);
 
-    supabase.auth.getSession().then(function(result) {
-      var session = result.data.session;
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchProfile(session.user.id).then(function() {
-          clearTimeout(timer);
-          setLoading(false);
-        });
+    supabase.auth.getSession()
+      .then(function(result) {
+        var session = result.data.session;
+        if (session && session.user) {
+          setUser(session.user);
+          return fetchProfile(session.user.id);
+        } else {
+          setUser(null);
+        }
+      })
+      .catch(function() { setUser(null); })
+      .finally(function() {
+        if (!done) { done = true; clearTimeout(timer); setLoading(false); }
+      });
+
+    var listener = supabase.auth.onAuthStateChange(function(_event, session) {
+      if (session && session.user) {
+        setUser(session.user);
+        fetchProfile(session.user.id);
       } else {
-        clearTimeout(timer);
-        setLoading(false);
+        setUser(null);
+        setProfile(null);
       }
-    }).catch(function() {
-      clearTimeout(timer);
-      setLoading(false);
+      if (!done) { done = true; clearTimeout(timer); setLoading(false); }
     });
 
-    var sub = supabase.auth.onAuthStateChange(
-      async function(_event, session) {
-        setUser(session?.user ?? null);
-        if (session?.user) {
-          await fetchProfile(session.user.id);
-        } else {
-          setProfile(null);
-        }
-        setLoading(false);
-      }
-    );
-
-    return function() { sub.data.subscription.unsubscribe(); };
+    return function() {
+      clearTimeout(timer);
+      listener.data.subscription.unsubscribe();
+    };
   }, []);
 
-  const signUp = async (email, password, fullName) => {
+  function signUp(email, password, fullName) {
     var redirectUrl = window.location.origin + window.location.pathname;
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { full_name: fullName },
-        emailRedirectTo: redirectUrl,
-      },
+    return supabase.auth.signUp({
+      email: email,
+      password: password,
+      options: { data: { full_name: fullName }, emailRedirectTo: redirectUrl },
+    }).then(function(res) {
+      if (res.error) throw res.error;
+      return res.data;
     });
-    if (error) throw error;
-    return data;
-  };
+  }
 
-  const signIn = async (email, password) => {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
+  function signIn(email, password) {
+    return supabase.auth.signInWithPassword({
+      email: email, password: password,
+    }).then(function(res) {
+      if (res.error) throw res.error;
+      return res.data;
     });
-    if (error) throw error;
-    return data;
-  };
+  }
 
-  const signOut = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
-    setUser(null);
-    setProfile(null);
-  };
+  function signOut() {
+    return supabase.auth.signOut()
+      .then(function() { setUser(null); setProfile(null); })
+      .catch(function() { setUser(null); setProfile(null); });
+  }
 
   var value = {
-    user: user,
-    profile: profile,
-    loading: loading,
-    signUp: signUp,
-    signIn: signIn,
-    signOut: signOut,
-    isAdmin: profile?.role === 'admin',
+    user: user, profile: profile, loading: loading,
+    signUp: signUp, signIn: signIn, signOut: signOut,
+    isAdmin: profile ? profile.role === 'admin' : false,
     fetchProfile: fetchProfile,
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return (<AuthContext.Provider value={value}>{children}</AuthContext.Provider>);
 }
 
-export function useAuth() {
-  var context = useContext(AuthContext);
-  if (!context) throw new Error('useAuth must be used within AuthProvider');
-  return context;
-}
+export function useAuth() { return useContext(AuthContext); }

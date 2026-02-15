@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../components/AuthProvider';
 import { generateMonthRows, calcWorkHours } from '../lib/utils';
@@ -6,217 +6,177 @@ import { openPrintPDF } from '../lib/pdf';
 import AttendanceTable from '../components/AttendanceTable';
 
 export default function AttendancePage() {
-  const { user, profile } = useAuth();
-  const [year, setYear] = useState(new Date().getFullYear());
-  const [month, setMonth] = useState(new Date().getMonth() + 1);
-  const [rows, setRows] = useState([]);
-  const [reportId, setReportId] = useState(null);
-  const [status, setStatus] = useState('下書き');
-  const [defaults, setDefaults] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState('');
-  const saveTimer = useRef(null);
+  var auth = useAuth();
+  var _y = useState(new Date().getFullYear()), year = _y[0], setYear = _y[1];
+  var _m = useState(new Date().getMonth() + 1), month = _m[0], setMonth = _m[1];
+  var _r = useState([]), rows = _r[0], setRows = _r[1];
+  var _rid = useState(null), reportId = _rid[0], setReportId = _rid[1];
+  var _st = useState('下書き'), status = _st[0], setStatus = _st[1];
+  var _def = useState(null), defaults = _def[0], setDefaults = _def[1];
+  var _ld = useState(true), loading = _ld[0], setLoading = _ld[1];
+  var _sv = useState(false), saving = _sv[0], setSaving = _sv[1];
+  var _t = useState(''), toast = _t[0], setToast = _t[1];
+  var saveTimer = useRef(null);
 
-  const flash = (msg) => { setToast(msg); setTimeout(() => setToast(''), 2500); };
+  function flash(msg) { setToast(msg); setTimeout(function() { setToast(''); }, 2500); }
 
-  // ── デフォルト設定取得 ──────────────────────────────────────
-  const loadDefaults = useCallback(async () => {
-    if (!user) return null;
-    const { data } = await supabase
-      .from('default_settings')
-      .select('*')
-      .eq('user_id', user.id)
-      .single();
-    if (data) setDefaults(data);
-    return data;
-  }, [user]);
+  function insertRows(repId, rowsData) {
+    var inserts = rowsData.map(function(r) {
+      return {
+        report_id: repId, day: r.day, dow: r.dow,
+        holiday: r.holiday || '', start_time: r.start_time || '',
+        end_time: r.end_time || '', deduction: r.deduction || '',
+        work_hours: r.work_hours || '', work_content: r.work_content || '',
+        transport: Number(r.transport) || 0,
+      };
+    });
+    return supabase.from('attendance_rows').insert(inserts);
+  }
 
-  // ── 月データ取得 ────────────────────────────────────────────
-  const loadMonthData = useCallback(async () => {
-    if (!user) return;
+  function loadData() {
+    if (!auth.user) { setLoading(false); return; }
     setLoading(true);
 
-    // まずデフォルト取得
-    let defs = defaults;
-    if (!defs) defs = await loadDefaults();
+    var userId = auth.user.id;
+    var defs = defaults;
 
-    // レポート取得
-    const { data: report } = await supabase
-      .from('monthly_reports')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('year', year)
-      .eq('month', month)
-      .single();
+    // デフォルト設定取得
+    var p = defs ? Promise.resolve(defs) : supabase
+      .from('default_settings').select('*').eq('user_id', userId).single()
+      .then(function(res) {
+        if (res.data) { setDefaults(res.data); return res.data; }
+        return {};
+      }).catch(function() { return {}; });
 
-    if (report) {
-      setReportId(report.id);
-      setStatus(report.status);
-
-      // 行データ取得
-      const { data: rowData } = await supabase
-        .from('attendance_rows')
-        .select('*')
-        .eq('report_id', report.id)
-        .order('day');
-
-      if (rowData && rowData.length > 0) {
-        setRows(rowData);
+    p.then(function(d) {
+      defs = d || {};
+      // レポート取得
+      return supabase.from('monthly_reports').select('*')
+        .eq('user_id', userId).eq('year', year).eq('month', month).single();
+    }).then(function(res) {
+      if (res.data) {
+        setReportId(res.data.id);
+        setStatus(res.data.status);
+        return supabase.from('attendance_rows').select('*')
+          .eq('report_id', res.data.id).order('day')
+          .then(function(rowRes) {
+            if (rowRes.data && rowRes.data.length > 0) {
+              setRows(rowRes.data);
+            } else {
+              var generated = generateMonthRows(year, month, defs);
+              setRows(generated);
+              insertRows(res.data.id, generated);
+            }
+          });
       } else {
-        // レポートはあるが行データがない場合
-        const generated = generateMonthRows(year, month, defs || {});
+        // 新規
+        var generated = generateMonthRows(year, month, defs);
         setRows(generated);
-        await insertRows(report.id, generated);
+        return supabase.from('monthly_reports')
+          .insert({ user_id: userId, year: year, month: month, status: '下書き' })
+          .select().single()
+          .then(function(newRes) {
+            if (newRes.data) {
+              setReportId(newRes.data.id);
+              setStatus('下書き');
+              return insertRows(newRes.data.id, generated);
+            }
+          });
       }
-    } else {
-      // 新規月: レポート&行データ作成
-      const generated = generateMonthRows(year, month, defs || {});
+    }).catch(function(err) {
+      console.error('Load error:', err);
+      var generated = generateMonthRows(year, month, defs || {});
       setRows(generated);
+    }).finally(function() {
+      setLoading(false);
+    });
+  }
 
-      const { data: newReport } = await supabase
-        .from('monthly_reports')
-        .insert({ user_id: user.id, year, month, status: '下書き' })
-        .select()
-        .single();
+  useEffect(function() { loadData(); }, [auth.user, year, month]);
 
-      if (newReport) {
-        setReportId(newReport.id);
-        setStatus('下書き');
-        await insertRows(newReport.id, generated);
-      }
-    }
-
-    setLoading(false);
-  }, [user, year, month, defaults, loadDefaults]);
-
-  // ── 行データ一括挿入 ────────────────────────────────────────
-  const insertRows = async (repId, rowsData) => {
-    const inserts = rowsData.map(r => ({
-      report_id: repId,
-      day: r.day,
-      dow: r.dow,
-      holiday: r.holiday || '',
-      start_time: r.start_time || '',
-      end_time: r.end_time || '',
-      deduction: r.deduction || '',
-      work_hours: r.work_hours || '',
-      work_content: r.work_content || '',
-      transport: Number(r.transport) || 0,
-    }));
-    await supabase.from('attendance_rows').insert(inserts);
-  };
-
-  useEffect(() => {
-    loadMonthData();
-  }, [loadMonthData]);
-
-  // ── セル変更 (デバウンス保存) ────────────────────────────────
-  const onCellChange = (index, updatedRow) => {
-    const newRows = [...rows];
-    newRows[index] = { ...newRows[index], ...updatedRow };
+  function onCellChange(index, updatedRow) {
+    var newRows = rows.slice();
+    newRows[index] = Object.assign({}, newRows[index], updatedRow);
     setRows(newRows);
 
-    // デバウンスでDBに保存
     if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(async () => {
-      const row = newRows[index];
+    saveTimer.current = setTimeout(function() {
+      var row = newRows[index];
       if (row.id) {
-        await supabase
-          .from('attendance_rows')
-          .update({
-            start_time: row.start_time,
-            end_time: row.end_time,
-            deduction: row.deduction,
-            work_hours: row.work_hours,
-            work_content: row.work_content,
-            transport: Number(row.transport) || 0,
-          })
-          .eq('id', row.id);
+        supabase.from('attendance_rows').update({
+          start_time: row.start_time, end_time: row.end_time,
+          deduction: row.deduction, work_hours: row.work_hours,
+          work_content: row.work_content, transport: Number(row.transport) || 0,
+        }).eq('id', row.id).then(function() {}).catch(function() {});
       }
-    }, 500);
-  };
+    }, 800);
+  }
 
-  // ── 申請 ────────────────────────────────────────────────────
-  const handleSubmit = async () => {
+  function handleSubmit() {
     if (!reportId) return;
     setSaving(true);
-    await supabase
-      .from('monthly_reports')
+    supabase.from('monthly_reports')
       .update({ status: '申請済', submitted_at: new Date().toISOString() })
-      .eq('id', reportId);
-    setStatus('申請済');
-    flash(`${year}年${month}月 申請しました`);
-    setSaving(false);
-  };
+      .eq('id', reportId)
+      .then(function() {
+        setStatus('申請済');
+        flash(year + '年' + month + '月 申請しました');
+      })
+      .catch(function() { flash('申請に失敗しました'); })
+      .finally(function() { setSaving(false); });
+  }
 
-  // ── 申請取消 ─────────────────────────────────────────────────
-  const handleUnsubmit = async () => {
+  function handleUnsubmit() {
     if (!reportId) return;
     setSaving(true);
-    await supabase
-      .from('monthly_reports')
+    supabase.from('monthly_reports')
       .update({ status: '下書き', submitted_at: null })
-      .eq('id', reportId);
-    setStatus('下書き');
-    flash('申請を取り消しました');
-    setSaving(false);
-  };
+      .eq('id', reportId)
+      .then(function() {
+        setStatus('下書き');
+        flash('申請を取り消しました');
+      })
+      .catch(function() { flash('取り消しに失敗しました'); })
+      .finally(function() { setSaving(false); });
+  }
 
-  // ── 再生成 ────────────────────────────────────────────────────
-  const handleRegenerate = async () => {
+  function handleRegenerate() {
     if (!reportId) return;
     setSaving(true);
+    supabase.from('attendance_rows').delete().eq('report_id', reportId)
+      .then(function() {
+        var generated = generateMonthRows(year, month, defaults || {});
+        return insertRows(reportId, generated).then(function() {
+          return supabase.from('attendance_rows').select('*')
+            .eq('report_id', reportId).order('day');
+        });
+      })
+      .then(function(res) {
+        if (res.data) setRows(res.data);
+        setStatus('下書き');
+        return supabase.from('monthly_reports').update({ status: '下書き' }).eq('id', reportId);
+      })
+      .then(function() { flash('デフォルト設定で再生成しました'); })
+      .catch(function() { flash('再生成に失敗しました'); })
+      .finally(function() { setSaving(false); });
+  }
 
-    // 既存行削除
-    await supabase.from('attendance_rows').delete().eq('report_id', reportId);
+  function prevMonth() {
+    if (month === 1) { setMonth(12); setYear(year - 1); } else { setMonth(month - 1); }
+  }
+  function nextMonth() {
+    if (month === 12) { setMonth(1); setYear(year + 1); } else { setMonth(month + 1); }
+  }
 
-    // 再生成
-    const defs = defaults || {};
-    const generated = generateMonthRows(year, month, defs);
-    await insertRows(reportId, generated);
-
-    // 再取得
-    const { data: rowData } = await supabase
-      .from('attendance_rows')
-      .select('*')
-      .eq('report_id', reportId)
-      .order('day');
-
-    if (rowData) setRows(rowData);
-    setStatus('下書き');
-    await supabase.from('monthly_reports').update({ status: '下書き' }).eq('id', reportId);
-
-    flash('デフォルト設定で再生成しました');
-    setSaving(false);
-  };
-
-  // ── 月移動 ────────────────────────────────────────────────────
-  const prevMonth = () => {
-    if (month === 1) { setMonth(12); setYear(year - 1); }
-    else setMonth(month - 1);
-  };
-  const nextMonth = () => {
-    if (month === 12) { setMonth(1); setYear(year + 1); }
-    else setMonth(month + 1);
-  };
-
-  // ── ステータスバッジ色 ──────────────────────────────────────
-  const statusClass = {
-    '下書き': 'badge-draft',
-    '申請済': 'badge-submitted',
-    '承認済': 'badge-approved',
-    '差戻し': 'badge-rejected',
-  }[status] || 'badge-draft';
+  var statusClass = { '下書き': 'badge-draft', '申請済': 'badge-submitted', '承認済': 'badge-approved', '差戻し': 'badge-rejected' }[status] || 'badge-draft';
 
   if (loading) {
-    return <div className="page-loading"><div className="spinner" /><span>読み込み中...</span></div>;
+    return (<div className="page-loading"><div className="spinner"></div><span>読み込み中...</span></div>);
   }
 
   return (
     <div className="attendance-page">
       {toast && <div className="toast">{toast}</div>}
-
       <div className="month-header">
         <div className="month-nav">
           <button className="btn-icon" onClick={prevMonth}>◀</button>
@@ -224,33 +184,17 @@ export default function AttendancePage() {
           <button className="btn-icon" onClick={nextMonth}>▶</button>
         </div>
         <div className="header-actions">
-          <span className={`status-badge ${statusClass}`}>{status}</span>
-          <button className="btn-outline" onClick={handleRegenerate} disabled={saving}>
-            🔄 再生成
-          </button>
-          <button
-            className="btn-outline"
-            onClick={() => openPrintPDF(rows, year, month, profile?.full_name || '', status)}
-          >
-            📄 PDF
-          </button>
+          <span className={'status-badge ' + statusClass}>{status}</span>
+          <button className="btn-outline" onClick={handleRegenerate} disabled={saving}>🔄 再生成</button>
+          <button className="btn-outline" onClick={function() { openPrintPDF(rows, year, month, auth.profile ? auth.profile.full_name : '', status); }}>📄 PDF</button>
           {status === '申請済' || status === '承認済' ? (
-            <button className="btn-danger" onClick={handleUnsubmit} disabled={saving || status === '承認済'}>
-              {status === '承認済' ? '承認済' : '申請取消'}
-            </button>
+            <button className="btn-danger" onClick={handleUnsubmit} disabled={saving || status === '承認済'}>{status === '承認済' ? '承認済' : '申請取消'}</button>
           ) : (
-            <button className="btn-submit" onClick={handleSubmit} disabled={saving}>
-              ✓ 申請
-            </button>
+            <button className="btn-submit" onClick={handleSubmit} disabled={saving}>✓ 申請</button>
           )}
         </div>
       </div>
-
-      <AttendanceTable
-        rows={rows}
-        onCellChange={onCellChange}
-        readOnly={status === '承認済'}
-      />
+      <AttendanceTable rows={rows} onCellChange={onCellChange} readOnly={status === '承認済'} />
     </div>
   );
 }
