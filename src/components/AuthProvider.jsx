@@ -41,12 +41,13 @@ export function AuthProvider({ children }) {
   }, []);
 
   const signUp = async (email, password, fullName) => {
+    const redirectUrl = window.location.origin + window.location.pathname;
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: { full_name: fullName },
-        emailRedirectTo: window.location.origin + window.location.pathname,
+        emailRedirectTo: redirectUrl,
       },
     });
     if (error) throw error;
@@ -92,10 +93,3 @@ export function useAuth() {
   if (!context) throw new Error('useAuth must be used within AuthProvider');
   return context;
 }
-```
-
-**Ctrl+S** で保存 → メモ帳を閉じる。
-
-次に、認証メールからのリダイレクト時にトークンを正しく処理するため、`App.jsx` も修正します：
-```
-notepad src\App.jsx

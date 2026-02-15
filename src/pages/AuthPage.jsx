@@ -104,16 +104,3 @@ export default function AuthPage({ message }) {
     </div>
   );
 }
-```
-
-**Ctrl+S** で保存 → メモ帳を閉じる。
-
-push します：
-```
-git add .
-```
-```
-git commit -m "fix email redirect"
-```
-```
-git push

@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { supabase } from './lib/supabase';
 import { useAuth } from './components/AuthProvider';
 import AuthPage from './pages/AuthPage';
 import AttendancePage from './pages/AttendancePage';
@@ -12,17 +11,14 @@ export default function App() {
   const [view, setView] = useState('attendance');
   const [confirmMsg, setConfirmMsg] = useState('');
 
-  // メール認証のリダイレクトを処理
   useEffect(() => {
-    const hash = window.location.hash;
+    var hash = window.location.hash;
     if (hash && hash.includes('access_token')) {
-      // Supabaseが自動的にセッションを復元するので待つだけ
-      // ハッシュをクリーンアップ
       window.history.replaceState(null, '', window.location.pathname);
     }
     if (hash && hash.includes('error_description')) {
-      const params = new URLSearchParams(hash.substring(1));
-      const desc = params.get('error_description');
+      var params = new URLSearchParams(hash.substring(1));
+      var desc = params.get('error_description');
       if (desc && desc.includes('expired')) {
         setConfirmMsg('認証リンクの有効期限が切れています。再度登録してください。');
       }
@@ -40,11 +36,11 @@ export default function App() {
 
   if (!user) return <AuthPage message={confirmMsg} />;
 
-  const handleMonthNavigate = (year, month) => {
-    window.__attNav = { year, month };
+  var handleMonthNavigate = function(year, month) {
+    window.__attNav = { year: year, month: month };
     setView('attendance');
-    setTimeout(() => {
-      window.dispatchEvent(new CustomEvent('att-navigate', { detail: { year, month } }));
+    setTimeout(function() {
+      window.dispatchEvent(new CustomEvent('att-navigate', { detail: { year: year, month: month } }));
     }, 100);
   };
 
@@ -61,16 +57,17 @@ export default function App() {
             ['attendance', '勤怠入力'],
             ['months', '月別一覧'],
             ['settings', '設定'],
-            ...(isAdmin ? [['admin', '管理者']] : []),
-          ].map(([key, label]) => (
-            <button
-              key={key}
-              className={`nav-btn ${view === key ? 'nav-active' : ''}`}
-              onClick={() => setView(key)}
-            >
-              {label}
-            </button>
-          ))}
+          ].concat(isAdmin ? [['admin', '管理者']] : []).map(function(item) {
+            return (
+              <button
+                key={item[0]}
+                className={'nav-btn ' + (view === item[0] ? 'nav-active' : '')}
+                onClick={function() { setView(item[0]); }}
+              >
+                {item[1]}
+              </button>
+            );
+          })}
           <button className="nav-logout" onClick={signOut}>ログアウト</button>
         </nav>
       </header>
@@ -84,10 +81,3 @@ export default function App() {
     </div>
   );
 }
-```
-
-**Ctrl+S** で保存 → メモ帳を閉じる。
-
-最後に、`AuthPage.jsx` もメッセージ表示に対応させます：
-```
-notepad src\pages\AuthPage.jsx
