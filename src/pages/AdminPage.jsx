@@ -6,39 +6,53 @@ import AttendanceTable from '../components/AttendanceTable';
 
 export default function AdminPage() {
   var auth = useAuth();
-  var _u = useState([]), users = _u[0], setUsers = _u[1];
+  var now = new Date();
+  var _y = useState(now.getFullYear()), year = _y[0], setYear = _y[1];
+  var _m = useState(now.getMonth() + 1), month = _m[0], setMonth = _m[1];
+  var _users = useState([]), users = _users[0], setUsers = _users[1];
   var _ld = useState(true), loading = _ld[0], setLoading = _ld[1];
   var _dv = useState(null), detailView = _dv[0], setDetailView = _dv[1];
   var _t = useState(''), toast = _t[0], setToast = _t[1];
 
   function flash(msg) { setToast(msg); setTimeout(function() { setToast(''); }, 2500); }
 
-  function loadUsers() {
+  function loadMonthData() {
     setLoading(true);
-    supabase.from('profiles').select('*').order('created_at')
-      .then(function(res) {
-        if (!res.data) { setUsers([]); setLoading(false); return; }
-        var promises = res.data.map(function(p) {
-          return supabase.from('monthly_reports').select('*')
-            .eq('user_id', p.id)
-            .order('year', { ascending: false })
-            .order('month', { ascending: false })
-            .then(function(rRes) {
-              return Object.assign({}, p, { reports: rRes.data || [] });
+    setDetailView(null);
+
+    supabase.from('profiles').select('*').order('full_name')
+      .then(function(profRes) {
+        if (!profRes.data) { setUsers([]); setLoading(false); return; }
+
+        return supabase.from('monthly_reports').select('*')
+          .eq('year', year).eq('month', month)
+          .then(function(repRes) {
+            var reports = repRes.data || [];
+            var result = profRes.data.map(function(p) {
+              var report = reports.find(function(r) { return r.user_id === p.id; });
+              return {
+                id: p.id,
+                full_name: p.full_name,
+                email: p.email,
+                role: p.role,
+                report: report || null,
+                status: report ? report.status : '未作成',
+              };
             });
-        });
-        return Promise.all(promises).then(function(result) { setUsers(result); });
+            setUsers(result);
+          });
       })
       .catch(function() { setUsers([]); })
       .finally(function() { setLoading(false); });
   }
 
-  useEffect(function() { loadUsers(); }, []);
+  useEffect(function() { loadMonthData(); }, [year, month]);
 
-  function viewReport(report, profile) {
-    supabase.from('attendance_rows').select('*').eq('report_id', report.id).order('day')
+  function viewDetail(u) {
+    if (!u.report) return;
+    supabase.from('attendance_rows').select('*').eq('report_id', u.report.id).order('day')
       .then(function(res) {
-        setDetailView({ report: report, rows: res.data || [], profile: profile });
+        setDetailView({ user: u, rows: res.data || [], report: u.report });
       })
       .catch(function() {});
   }
@@ -49,28 +63,42 @@ export default function AdminPage() {
         flash('ステータスを「' + newStatus + '」に更新しました');
         if (detailView && detailView.report.id === reportId) {
           setDetailView(Object.assign({}, detailView, {
-            report: Object.assign({}, detailView.report, { status: newStatus })
+            report: Object.assign({}, detailView.report, { status: newStatus }),
+            user: Object.assign({}, detailView.user, { status: newStatus }),
           }));
         }
-        loadUsers();
+        loadMonthData();
       })
       .catch(function() { flash('更新に失敗しました'); });
   }
 
+  function prevMonth() {
+    if (month === 1) { setMonth(12); setYear(year - 1); } else { setMonth(month - 1); }
+  }
+  function nextMonth() {
+    if (month === 12) { setMonth(1); setYear(year + 1); } else { setMonth(month + 1); }
+  }
+
   function statusClass(s) {
-    return { '下書き': 'badge-draft', '申請済': 'badge-submitted', '承認済': 'badge-approved', '差戻し': 'badge-rejected' }[s] || 'badge-draft';
+    return {
+      '未作成': 'badge-none',
+      '下書き': 'badge-draft',
+      '申請済': 'badge-submitted',
+      '承認済': 'badge-approved',
+      '差戻し': 'badge-rejected',
+    }[s] || 'badge-draft';
   }
 
   if (detailView) {
     var rpt = detailView.report;
-    var prof = detailView.profile;
+    var u = detailView.user;
     return (
       <div className="admin-page">
         {toast && <div className="toast">{toast}</div>}
         <div className="month-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <button className="btn-ghost" onClick={function() { setDetailView(null); }}>← 戻る</button>
-            <h2 className="month-title">{prof.full_name} — {rpt.year}年{rpt.month}月</h2>
+            <h2 className="month-title">{u.full_name} — {year}年{month}月</h2>
           </div>
           <div className="header-actions">
             <span className={'status-badge ' + statusClass(rpt.status)}>{rpt.status}</span>
@@ -80,7 +108,10 @@ export default function AdminPage() {
                 <button className="btn-danger" onClick={function() { updateStatus(rpt.id, '差戻し'); }}>✗ 差戻し</button>
               </>
             )}
-            <button className="btn-outline" onClick={function() { openPrintPDF(detailView.rows, rpt.year, rpt.month, prof.full_name, rpt.status); }}>📄 PDF印刷</button>
+            {rpt.status === '差戻し' && (
+              <button className="btn-submit" onClick={function() { updateStatus(rpt.id, '承認済'); }}>✓ 承認</button>
+            )}
+            <button className="btn-outline" onClick={function() { openPrintPDF(detailView.rows, year, month, u.full_name, rpt.status); }}>📄 PDF印刷</button>
           </div>
         </div>
         <AttendanceTable rows={detailView.rows} readOnly={true} />
@@ -88,48 +119,73 @@ export default function AdminPage() {
     );
   }
 
-  if (loading) return (<div className="page-loading"><div className="spinner"></div><span>読み込み中...</span></div>);
-
   return (
     <div className="admin-page">
       {toast && <div className="toast">{toast}</div>}
-      <div className="card">
-        <h2 className="card-title">全ユーザー管理</h2>
-        <p className="card-desc">全ユーザーの勤怠申請を確認・承認できます。</p>
-        {users.length === 0 ? (
-          <p className="empty-state">登録ユーザーはいません</p>
-        ) : (
-          <div className="admin-users">
-            {users.map(function(u) {
-              return (
-                <div key={u.id} className="admin-user-card">
-                  <div className="admin-user-header">
-                    <div>
-                      <span className="admin-user-name">{u.full_name}</span>
-                      <span className="admin-user-email">{u.email}</span>
-                      {u.role === 'admin' && <span className="admin-role-badge">管理者</span>}
-                    </div>
-                  </div>
-                  {u.reports.length === 0 ? (
-                    <p className="admin-no-data">データなし</p>
-                  ) : (
-                    <div className="admin-month-list">
-                      {u.reports.map(function(r) {
-                        return (
-                          <button key={r.id} className={'admin-month-btn ' + statusClass(r.status)} onClick={function() { viewReport(r, u); }}>
-                            {r.year}年{r.month}月
-                            <span className="admin-month-status">{r.status}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
+
+      <div className="month-header">
+        <div className="month-nav">
+          <button className="btn-icon" onClick={prevMonth}>◀</button>
+          <h2 className="month-title">{year}年{month}月</h2>
+          <button className="btn-icon" onClick={nextMonth}>▶</button>
+        </div>
+        <div className="header-actions">
+          <span className="admin-summary">
+            全{users.length}名
+            {users.filter(function(u) { return u.status === '申請済'; }).length > 0 &&
+              <span className="admin-pending"> / 未承認: {users.filter(function(u) { return u.status === '申請済'; }).length}名</span>
+            }
+          </span>
+        </div>
       </div>
+
+      {loading ? (
+        <div className="page-loading"><div className="spinner"></div><span>読み込み中...</span></div>
+      ) : (
+        <div className="card" style={{ padding: '0', overflow: 'hidden' }}>
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th style={{ textAlign: 'left' }}>氏名</th>
+                <th style={{ textAlign: 'left' }}>メールアドレス</th>
+                <th style={{ textAlign: 'center', width: '100px' }}>ステータス</th>
+                <th style={{ textAlign: 'center', width: '160px' }}>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map(function(u) {
+                return (
+                  <tr key={u.id} className="admin-table-row">
+                    <td className="admin-table-name">
+                      {u.full_name}
+                      {u.role === 'admin' && <span className="admin-role-badge">管理者</span>}
+                    </td>
+                    <td className="admin-table-email">{u.email}</td>
+                    <td style={{ textAlign: 'center' }}>
+                      <span className={'status-badge ' + statusClass(u.status)}>{u.status}</span>
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      {u.report ? (
+                        <div className="admin-actions">
+                          <button className="btn-small" onClick={function() { viewDetail(u); }}>詳細</button>
+                          {u.status === '申請済' && (
+                            <>
+                              <button className="btn-small btn-small-approve" onClick={function() { updateStatus(u.report.id, '承認済'); }}>承認</button>
+                              <button className="btn-small btn-small-reject" onClick={function() { updateStatus(u.report.id, '差戻し'); }}>差戻</button>
+                            </>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="admin-no-data">—</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

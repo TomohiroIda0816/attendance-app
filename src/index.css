@@ -496,6 +496,46 @@ body {
   opacity: 0.7;
 }
 
+/* ── Admin Table ────────────────────────────────────────────── */
+.admin-table {
+  width: 100%; border-collapse: collapse; font-size: 14px;
+}
+.admin-table thead th {
+  padding: 12px 16px;
+  background: #2a2a28; color: #e8e8e0;
+  font-weight: 600; font-size: 13px;
+  letter-spacing: 0.3px;
+  border-bottom: 2px solid var(--accent);
+}
+.admin-table-row { transition: background var(--transition); }
+.admin-table-row:hover { background: var(--bg); }
+.admin-table-row td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-light);
+  vertical-align: middle;
+}
+.admin-table-name { font-weight: 600; }
+.admin-table-email { font-size: 13px; color: var(--text-secondary); }
+.badge-none { background: var(--bg); color: var(--text-muted); }
+.admin-summary { font-size: 14px; color: var(--text-secondary); }
+.admin-pending { color: var(--danger); font-weight: 600; }
+.admin-actions { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+.btn-small {
+  padding: 4px 10px; border: 1px solid var(--border); border-radius: 4px;
+  font-size: 12px; cursor: pointer; font-family: var(--font);
+  background: var(--surface); color: var(--text-secondary); font-weight: 500;
+  transition: all var(--transition);
+}
+.btn-small:hover { background: var(--bg); }
+.btn-small-approve {
+  border-color: #a3c9a0; color: var(--success); background: var(--success-light);
+}
+.btn-small-approve:hover { background: #d0e8cd; }
+.btn-small-reject {
+  border-color: #d0a0a0; color: var(--danger); background: var(--danger-light);
+}
+.btn-small-reject:hover { background: #f5d0cd; }
+
 /* ── Responsive ────────────────────────────────────────────── */
 @media (max-width: 768px) {
   .app-header { padding: 10px 12px; }
