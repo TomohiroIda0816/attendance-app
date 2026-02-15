@@ -7,26 +7,42 @@ import MonthsPage from './pages/MonthsPage';
 import AdminPage from './pages/AdminPage';
 
 export default function App() {
-  var auth = useAuth();
-  var _v = useState('attendance'), view = _v[0], setView = _v[1];
+  const { user, profile, loading, signOut, isAdmin } = useAuth();
+  const [view, setView] = useState('attendance');
+  const [confirmMsg, setConfirmMsg] = useState('');
 
-  useEffect(function() {
+  useEffect(() => {
     var hash = window.location.hash;
     if (hash && hash.includes('access_token')) {
       window.history.replaceState(null, '', window.location.pathname);
     }
+    if (hash && hash.includes('error_description')) {
+      var params = new URLSearchParams(hash.substring(1));
+      var desc = params.get('error_description');
+      if (desc && desc.includes('expired')) {
+        setConfirmMsg('認証リンクの有効期限が切れています。再度登録してください。');
+      }
+    }
   }, []);
 
-  if (auth.loading) {
+  if (loading) {
     return (
       <div className="loading-screen">
-        <div className="spinner"></div>
+        <div className="spinner" />
         <p>読み込み中...</p>
       </div>
     );
   }
 
-  if (!auth.user) return (<AuthPage />);
+  if (!user) return <AuthPage message={confirmMsg} />;
+
+  var handleMonthNavigate = function(year, month) {
+    window.__attNav = { year: year, month: month };
+    setView('attendance');
+    setTimeout(function() {
+      window.dispatchEvent(new CustomEvent('att-navigate', { detail: { year: year, month: month } }));
+    }, 100);
+  };
 
   return (
     <div className="app-container">
@@ -34,21 +50,33 @@ export default function App() {
         <div className="header-left">
           <span className="header-logo">⏱</span>
           <span className="header-brand">勤怠管理</span>
-          <span className="header-user">{auth.profile ? auth.profile.full_name : ''}</span>
+          <span className="header-user">{profile?.full_name}</span>
         </div>
         <nav className="header-nav">
-          <button className={view === 'attendance' ? 'nav-btn nav-active' : 'nav-btn'} onClick={function() { setView('attendance'); }}>勤怠入力</button>
-          <button className={view === 'months' ? 'nav-btn nav-active' : 'nav-btn'} onClick={function() { setView('months'); }}>月別一覧</button>
-          <button className={view === 'settings' ? 'nav-btn nav-active' : 'nav-btn'} onClick={function() { setView('settings'); }}>設定</button>
-          {auth.isAdmin && <button className={view === 'admin' ? 'nav-btn nav-active' : 'nav-btn'} onClick={function() { setView('admin'); }}>管理者</button>}
-          <button className="nav-logout" onClick={function() { auth.signOut(); }}>ログアウト</button>
+          {[
+            ['attendance', '勤怠入力'],
+            ['months', '月別一覧'],
+            ['settings', '設定'],
+          ].concat(isAdmin ? [['admin', '管理者']] : []).map(function(item) {
+            return (
+              <button
+                key={item[0]}
+                className={'nav-btn ' + (view === item[0] ? 'nav-active' : '')}
+                onClick={function() { setView(item[0]); }}
+              >
+                {item[1]}
+              </button>
+            );
+          })}
+          <button className="nav-logout" onClick={signOut}>ログアウト</button>
         </nav>
       </header>
+
       <main className="app-main">
         {view === 'attendance' && <AttendancePage />}
         {view === 'settings' && <SettingsPage />}
-        {view === 'months' && <MonthsPage onNavigate={function(y, m) { setView('attendance'); }} />}
-        {view === 'admin' && auth.isAdmin && <AdminPage />}
+        {view === 'months' && <MonthsPage onNavigate={handleMonthNavigate} />}
+        {view === 'admin' && isAdmin && <AdminPage />}
       </main>
     </div>
   );
