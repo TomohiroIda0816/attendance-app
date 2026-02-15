@@ -7,76 +7,168 @@ import MonthsPage from './pages/MonthsPage';
 import AdminPage from './pages/AdminPage';
 
 export default function App() {
-  const { user, profile, loading, signOut, isAdmin } = useAuth();
-  const [view, setView] = useState('attendance');
-  const [confirmMsg, setConfirmMsg] = useState('');
+  var auth = useAuth();
+  var _mod = useState('home'), module = _mod[0], setModule = _mod[1];
+  var _v = useState('attendance'), view = _v[0], setView = _v[1];
 
-  useEffect(() => {
+  useEffect(function() {
     var hash = window.location.hash;
     if (hash && hash.includes('access_token')) {
       window.history.replaceState(null, '', window.location.pathname);
     }
-    if (hash && hash.includes('error_description')) {
-      var params = new URLSearchParams(hash.substring(1));
-      var desc = params.get('error_description');
-      if (desc && desc.includes('expired')) {
-        setConfirmMsg('認証リンクの有効期限が切れています。再度登録してください。');
-      }
-    }
   }, []);
 
-  if (loading) {
+  if (auth.loading) {
     return (
       <div className="loading-screen">
-        <div className="spinner" />
+        <div className="spinner"></div>
         <p>読み込み中...</p>
       </div>
     );
   }
 
-  if (!user) return <AuthPage message={confirmMsg} />;
+  if (!auth.user) return (<AuthPage />);
 
-  var handleMonthNavigate = function(year, month) {
-    window.__attNav = { year: year, month: month };
-    setView('attendance');
-    setTimeout(function() {
-      window.dispatchEvent(new CustomEvent('att-navigate', { detail: { year: year, month: month } }));
-    }, 100);
-  };
+  // ホーム画面（モジュール選択）
+  if (module === 'home') {
+    return (
+      <div className="app-container">
+        <header className="app-header">
+          <div className="header-left">
+            <span className="header-logo">📋</span>
+            <span className="header-brand">業務管理システム</span>
+            <span className="header-user">{auth.profile ? auth.profile.full_name : ''}</span>
+          </div>
+          <nav className="header-nav">
+            <button className="nav-logout" onClick={function() { auth.signOut(); }}>ログアウト</button>
+          </nav>
+        </header>
+        <main className="dashboard-main">
+          <div className="dashboard-greeting">
+            <h1 className="dashboard-title">{'こんにちは、' + (auth.profile ? auth.profile.full_name : '') + 'さん'}</h1>
+            <p className="dashboard-subtitle">メニューを選択してください</p>
+          </div>
+          <div className="dashboard-grid">
+            <button className="dashboard-card dc-attendance" onClick={function() { setModule('attendance'); setView('attendance'); }}>
+              <div className="dc-icon">⏱</div>
+              <div className="dc-info">
+                <h2 className="dc-title">勤怠管理</h2>
+                <p className="dc-desc">出退勤の記録・月次申請</p>
+              </div>
+              <span className="dc-arrow">→</span>
+            </button>
+            <button className="dashboard-card dc-trip" onClick={function() { setModule('trip'); }}>
+              <div className="dc-icon">✈️</div>
+              <div className="dc-info">
+                <h2 className="dc-title">出張管理</h2>
+                <p className="dc-desc">出張申請・精算</p>
+              </div>
+              <span className="dc-arrow">→</span>
+            </button>
+            <button className="dashboard-card dc-expense" onClick={function() { setModule('expense'); }}>
+              <div className="dc-icon">💰</div>
+              <div className="dc-info">
+                <h2 className="dc-title">経費管理</h2>
+                <p className="dc-desc">経費申請・精算</p>
+              </div>
+              <span className="dc-arrow">→</span>
+            </button>
+          </div>
+          {auth.isAdmin && (
+            <div className="dashboard-admin-section">
+              <p className="dashboard-admin-label">管理者メニュー</p>
+              <div className="dashboard-grid">
+                <button className="dashboard-card dc-admin" onClick={function() { setModule('attendance'); setView('admin'); }}>
+                  <div className="dc-icon">👥</div>
+                  <div className="dc-info">
+                    <h2 className="dc-title">勤怠管理（管理者）</h2>
+                    <p className="dc-desc">全ユーザーの申請確認・承認</p>
+                  </div>
+                  <span className="dc-arrow">→</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </main>
+      </div>
+    );
+  }
 
+  // 出張管理（準備中）
+  if (module === 'trip') {
+    return (
+      <div className="app-container">
+        <header className="app-header">
+          <div className="header-left">
+            <button className="btn-home" onClick={function() { setModule('home'); }}>◀ ホーム</button>
+            <span className="header-logo">✈️</span>
+            <span className="header-brand">出張管理</span>
+          </div>
+          <nav className="header-nav">
+            <button className="nav-logout" onClick={function() { auth.signOut(); }}>ログアウト</button>
+          </nav>
+        </header>
+        <main className="app-main">
+          <div className="coming-soon">
+            <div className="coming-soon-icon">🚧</div>
+            <h2 className="coming-soon-title">準備中</h2>
+            <p className="coming-soon-desc">出張管理機能は現在開発中です。</p>
+            <button className="btn-outline" onClick={function() { setModule('home'); }}>ホームに戻る</button>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // 経費管理（準備中）
+  if (module === 'expense') {
+    return (
+      <div className="app-container">
+        <header className="app-header">
+          <div className="header-left">
+            <button className="btn-home" onClick={function() { setModule('home'); }}>◀ ホーム</button>
+            <span className="header-logo">💰</span>
+            <span className="header-brand">経費管理</span>
+          </div>
+          <nav className="header-nav">
+            <button className="nav-logout" onClick={function() { auth.signOut(); }}>ログアウト</button>
+          </nav>
+        </header>
+        <main className="app-main">
+          <div className="coming-soon">
+            <div className="coming-soon-icon">🚧</div>
+            <h2 className="coming-soon-title">準備中</h2>
+            <p className="coming-soon-desc">経費管理機能は現在開発中です。</p>
+            <button className="btn-outline" onClick={function() { setModule('home'); }}>ホームに戻る</button>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // 勤怠管理モジュール
   return (
     <div className="app-container">
       <header className="app-header">
         <div className="header-left">
+          <button className="btn-home" onClick={function() { setModule('home'); }}>◀ ホーム</button>
           <span className="header-logo">⏱</span>
           <span className="header-brand">勤怠管理</span>
-          <span className="header-user">{profile?.full_name}</span>
+          <span className="header-user">{auth.profile ? auth.profile.full_name : ''}</span>
         </div>
         <nav className="header-nav">
-          {[
-            ['attendance', '勤怠入力'],
-            ['months', '月別一覧'],
-            ['settings', '設定'],
-          ].concat(isAdmin ? [['admin', '管理者']] : []).map(function(item) {
-            return (
-              <button
-                key={item[0]}
-                className={'nav-btn ' + (view === item[0] ? 'nav-active' : '')}
-                onClick={function() { setView(item[0]); }}
-              >
-                {item[1]}
-              </button>
-            );
-          })}
-          <button className="nav-logout" onClick={signOut}>ログアウト</button>
+          <button className={view === 'attendance' ? 'nav-btn nav-active' : 'nav-btn'} onClick={function() { setView('attendance'); }}>勤怠入力</button>
+          <button className={view === 'months' ? 'nav-btn nav-active' : 'nav-btn'} onClick={function() { setView('months'); }}>月別一覧</button>
+          <button className={view === 'settings' ? 'nav-btn nav-active' : 'nav-btn'} onClick={function() { setView('settings'); }}>設定</button>
+          {auth.isAdmin && <button className={view === 'admin' ? 'nav-btn nav-active' : 'nav-btn'} onClick={function() { setView('admin'); }}>管理者</button>}
+          <button className="nav-logout" onClick={function() { auth.signOut(); }}>ログアウト</button>
         </nav>
       </header>
-
       <main className="app-main">
         {view === 'attendance' && <AttendancePage />}
         {view === 'settings' && <SettingsPage />}
-        {view === 'months' && <MonthsPage onNavigate={handleMonthNavigate} />}
-        {view === 'admin' && isAdmin && <AdminPage />}
+        {view === 'months' && <MonthsPage onNavigate={function(y, m) { setView('attendance'); }} />}
+        {view === 'admin' && auth.isAdmin && <AdminPage />}
       </main>
     </div>
   );
