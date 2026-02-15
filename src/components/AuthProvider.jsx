@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+﻿import { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 
 const AuthContext = createContext({});
@@ -9,24 +9,41 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = async (userId) => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single();
-    if (!error && data) setProfile(data);
-    return data;
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+      if (!error && data) setProfile(data);
+      return data;
+    } catch (e) {
+      return null;
+    }
   };
 
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+  useEffect(function() {
+    var timer = setTimeout(function() { setLoading(false); }, 3000);
+
+    supabase.auth.getSession().then(function(result) {
+      var session = result.data.session;
       setUser(session?.user ?? null);
-      if (session?.user) fetchProfile(session.user.id);
+      if (session?.user) {
+        fetchProfile(session.user.id).then(function() {
+          clearTimeout(timer);
+          setLoading(false);
+        });
+      } else {
+        clearTimeout(timer);
+        setLoading(false);
+      }
+    }).catch(function() {
+      clearTimeout(timer);
       setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
+    var sub = supabase.auth.onAuthStateChange(
+      async function(_event, session) {
         setUser(session?.user ?? null);
         if (session?.user) {
           await fetchProfile(session.user.id);
@@ -37,11 +54,11 @@ export function AuthProvider({ children }) {
       }
     );
 
-    return () => subscription.unsubscribe();
+    return function() { sub.data.subscription.unsubscribe(); };
   }, []);
 
   const signUp = async (email, password, fullName) => {
-    const redirectUrl = window.location.origin + window.location.pathname;
+    var redirectUrl = window.location.origin + window.location.pathname;
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -70,15 +87,15 @@ export function AuthProvider({ children }) {
     setProfile(null);
   };
 
-  const value = {
-    user,
-    profile,
-    loading,
-    signUp,
-    signIn,
-    signOut,
+  var value = {
+    user: user,
+    profile: profile,
+    loading: loading,
+    signUp: signUp,
+    signIn: signIn,
+    signOut: signOut,
     isAdmin: profile?.role === 'admin',
-    fetchProfile,
+    fetchProfile: fetchProfile,
   };
 
   return (
@@ -89,7 +106,7 @@ export function AuthProvider({ children }) {
 }
 
 export function useAuth() {
-  const context = useContext(AuthContext);
+  var context = useContext(AuthContext);
   if (!context) throw new Error('useAuth must be used within AuthProvider');
   return context;
 }
