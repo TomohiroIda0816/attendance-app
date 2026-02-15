@@ -8,7 +8,6 @@ export function AuthProvider({ children }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // プロフィール取得
   const fetchProfile = async (userId) => {
     const { data, error } = await supabase
       .from('profiles')
@@ -20,14 +19,12 @@ export function AuthProvider({ children }) {
   };
 
   useEffect(() => {
-    // 初回セッション確認
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
       if (session?.user) fetchProfile(session.user.id);
       setLoading(false);
     });
 
-    // セッション変化を監視
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         setUser(session?.user ?? null);
@@ -43,20 +40,19 @@ export function AuthProvider({ children }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  // サインアップ
   const signUp = async (email, password, fullName) => {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: { full_name: fullName },
+        emailRedirectTo: window.location.origin + window.location.pathname,
       },
     });
     if (error) throw error;
     return data;
   };
 
-  // ログイン
   const signIn = async (email, password) => {
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
@@ -66,7 +62,6 @@ export function AuthProvider({ children }) {
     return data;
   };
 
-  // ログアウト
   const signOut = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
@@ -97,3 +92,10 @@ export function useAuth() {
   if (!context) throw new Error('useAuth must be used within AuthProvider');
   return context;
 }
+```
+
+**Ctrl+S** で保存 → メモ帳を閉じる。
+
+次に、認証メールからのリダイレクト時にトークンを正しく処理するため、`App.jsx` も修正します：
+```
+notepad src\App.jsx

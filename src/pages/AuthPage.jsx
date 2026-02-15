@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../components/AuthProvider';
 
-export default function AuthPage() {
+export default function AuthPage({ message }) {
   const { signIn, signUp } = useAuth();
   const [mode, setMode] = useState('login');
   const [email, setEmail] = useState('');
@@ -22,13 +22,14 @@ export default function AuthPage() {
       } else {
         if (!fullName.trim()) { setError('氏名を入力してください'); setLoading(false); return; }
         await signUp(email, password, fullName);
-        setSuccess('確認メールを送信しました。メールを確認してください。（Supabaseの設定でメール確認を無効にしている場合は自動でログインされます）');
+        setSuccess('確認メールを送信しました。メール内のリンクをクリックして認証を完了してください。');
       }
     } catch (err) {
       const msg = err.message || 'エラーが発生しました';
       if (msg.includes('Invalid login')) setError('メールアドレスまたはパスワードが正しくありません');
       else if (msg.includes('already registered')) setError('このメールアドレスは既に登録されています');
       else if (msg.includes('Password should be')) setError('パスワードは6文字以上で入力してください');
+      else if (msg.includes('Email not confirmed')) setError('メール認証が完了していません。メール内のリンクをクリックしてください。');
       else setError(msg);
     }
     setLoading(false);
@@ -42,6 +43,8 @@ export default function AuthPage() {
           <h1 className="auth-title">勤怠管理システム</h1>
           <p className="auth-subtitle">ATTENDANCE MANAGEMENT</p>
         </div>
+
+        {message && <div className="form-error">{message}</div>}
 
         <form onSubmit={handleSubmit}>
           {mode === 'register' && (
@@ -101,3 +104,16 @@ export default function AuthPage() {
     </div>
   );
 }
+```
+
+**Ctrl+S** で保存 → メモ帳を閉じる。
+
+push します：
+```
+git add .
+```
+```
+git commit -m "fix email redirect"
+```
+```
+git push

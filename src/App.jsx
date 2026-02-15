@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { supabase } from './lib/supabase';
 import { useAuth } from './components/AuthProvider';
 import AuthPage from './pages/AuthPage';
 import AttendancePage from './pages/AttendancePage';
@@ -9,6 +10,24 @@ import AdminPage from './pages/AdminPage';
 export default function App() {
   const { user, profile, loading, signOut, isAdmin } = useAuth();
   const [view, setView] = useState('attendance');
+  const [confirmMsg, setConfirmMsg] = useState('');
+
+  // メール認証のリダイレクトを処理
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (hash && hash.includes('access_token')) {
+      // Supabaseが自動的にセッションを復元するので待つだけ
+      // ハッシュをクリーンアップ
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+    if (hash && hash.includes('error_description')) {
+      const params = new URLSearchParams(hash.substring(1));
+      const desc = params.get('error_description');
+      if (desc && desc.includes('expired')) {
+        setConfirmMsg('認証リンクの有効期限が切れています。再度登録してください。');
+      }
+    }
+  }, []);
 
   if (loading) {
     return (
@@ -19,13 +38,11 @@ export default function App() {
     );
   }
 
-  if (!user) return <AuthPage />;
+  if (!user) return <AuthPage message={confirmMsg} />;
 
   const handleMonthNavigate = (year, month) => {
-    // MonthsPage → AttendancePage への遷移を window イベントで通知
     window.__attNav = { year, month };
     setView('attendance');
-    // 少し待ってからイベント発火
     setTimeout(() => {
       window.dispatchEvent(new CustomEvent('att-navigate', { detail: { year, month } }));
     }, 100);
@@ -33,7 +50,6 @@ export default function App() {
 
   return (
     <div className="app-container">
-      {/* Header */}
       <header className="app-header">
         <div className="header-left">
           <span className="header-logo">⏱</span>
@@ -59,7 +75,6 @@ export default function App() {
         </nav>
       </header>
 
-      {/* Content */}
       <main className="app-main">
         {view === 'attendance' && <AttendancePage />}
         {view === 'settings' && <SettingsPage />}
@@ -69,3 +84,10 @@ export default function App() {
     </div>
   );
 }
+```
+
+**Ctrl+S** で保存 → メモ帳を閉じる。
+
+最後に、`AuthPage.jsx` もメッセージ表示に対応させます：
+```
+notepad src\pages\AuthPage.jsx
