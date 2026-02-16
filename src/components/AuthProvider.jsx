@@ -1,99 +1,95 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 
-var AuthContext = createContext({});
+const AuthContext = createContext({});
 
 export function AuthProvider({ children }) {
-  var _s = useState(null), user = _s[0], setUser = _s[1];
-  var _p = useState(null), profile = _p[0], setProfile = _p[1];
-  var _l = useState(true), loading = _l[0], setLoading = _l[1];
+  const [user, setUser] = useState(null);
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  function fetchProfile(userId) {
-    return supabase
+  const fetchProfile = async (userId) => {
+    const { data, error } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', userId)
-      .single()
-      .then(function(res) {
-        if (!res.error && res.data) setProfile(res.data);
-        return res.data;
-      })
-      .catch(function() { return null; });
-  }
-
-  useEffect(function() {
-    var done = false;
-    var timer = setTimeout(function() {
-      if (!done) { done = true; setLoading(false); }
-    }, 3000);
-
-    supabase.auth.getSession()
-      .then(function(result) {
-        var session = result.data.session;
-        if (session && session.user) {
-          setUser(session.user);
-          return fetchProfile(session.user.id);
-        } else {
-          setUser(null);
-        }
-      })
-      .catch(function() { setUser(null); })
-      .finally(function() {
-        if (!done) { done = true; clearTimeout(timer); setLoading(false); }
-      });
-
-    var listener = supabase.auth.onAuthStateChange(function(_event, session) {
-      if (session && session.user) {
-        setUser(session.user);
-        fetchProfile(session.user.id);
-      } else {
-        setUser(null);
-        setProfile(null);
-      }
-      if (!done) { done = true; clearTimeout(timer); setLoading(false); }
-    });
-
-    return function() {
-      clearTimeout(timer);
-      listener.data.subscription.unsubscribe();
-    };
-  }, []);
-
-  function signUp(email, password, fullName) {
-    var redirectUrl = window.location.origin + window.location.pathname;
-    return supabase.auth.signUp({
-      email: email,
-      password: password,
-      options: { data: { full_name: fullName }, emailRedirectTo: redirectUrl },
-    }).then(function(res) {
-      if (res.error) throw res.error;
-      return res.data;
-    });
-  }
-
-  function signIn(email, password) {
-    return supabase.auth.signInWithPassword({
-      email: email, password: password,
-    }).then(function(res) {
-      if (res.error) throw res.error;
-      return res.data;
-    });
-  }
-
-  function signOut() {
-    return supabase.auth.signOut()
-      .then(function() { setUser(null); setProfile(null); })
-      .catch(function() { setUser(null); setProfile(null); });
-  }
-
-  var value = {
-    user: user, profile: profile, loading: loading,
-    signUp: signUp, signIn: signIn, signOut: signOut,
-    isAdmin: profile ? profile.role === 'admin' : false,
-    fetchProfile: fetchProfile,
+      .single();
+    if (!error && data) setProfile(data);
+    return data;
   };
 
-  return (<AuthContext.Provider value={value}>{children}</AuthContext.Provider>);
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      if (session?.user) fetchProfile(session.user.id);
+      setLoading(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (_event, session) => {
+        setUser(session?.user ?? null);
+        if (session?.user) {
+          await fetchProfile(session.user.id);
+        } else {
+          setProfile(null);
+        }
+        setLoading(false);
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const signUp = async (email, password, fullName) => {
+    const redirectUrl = window.location.origin + window.location.pathname;
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { full_name: fullName },
+        emailRedirectTo: redirectUrl,
+      },
+    });
+    if (error) throw error;
+    return data;
+  };
+
+  const signIn = async (email, password) => {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    if (error) throw error;
+    return data;
+  };
+
+  const signOut = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
+    setUser(null);
+    setProfile(null);
+  };
+
+  const value = {
+    user,
+    profile,
+    loading,
+    signUp,
+    signIn,
+    signOut,
+    isAdmin: profile?.role === 'admin',
+    fetchProfile,
+  };
+
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
-export function useAuth() { return useContext(AuthContext); }
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (!context) throw new Error('useAuth must be used within AuthProvider');
+  return context;
+}

@@ -685,6 +685,41 @@ body {
 }
 .nav-user-icon { font-size: 14px; }
 
+/* ── Auth: Account Type ───────────────────────────────────── */
+.account-type-selector { display: flex; gap: 8px; }
+.at-btn {
+  flex: 1; padding: 10px 16px; border: 2px solid var(--border);
+  border-radius: 8px; background: white; font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: all 0.15s; text-align: center;
+}
+.at-btn:hover { border-color: var(--accent); }
+.at-active { border-color: var(--accent); background: #eff6ff; color: var(--accent); }
+
+/* ── Intern Page ──────────────────────────────────────────── */
+.intern-page { max-width: 800px; margin: 0 auto; }
+.intern-summary { font-size: 13px; font-weight: 600; color: var(--accent); background: #eff6ff; padding: 4px 12px; border-radius: 6px; }
+.intern-detail { }
+.intern-detail-row { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
+.intern-detail-item { flex: 1; min-width: 100px; }
+.intern-detail-label { display: block; font-size: 11px; color: var(--text-muted); font-weight: 600; margin-bottom: 4px; }
+.intern-detail-value { font-size: 14px; font-weight: 600; }
+.intern-hours { color: var(--accent); font-family: var(--mono); }
+.intern-report-section { padding: 16px; background: var(--bg); border-radius: 8px; margin-bottom: 12px; }
+.intern-section-title { font-size: 13px; font-weight: 700; margin-bottom: 8px; }
+.intern-section-text { font-size: 13px; line-height: 1.6; white-space: pre-wrap; color: var(--text); }
+.intern-calc-preview {
+  padding: 10px 14px; background: var(--bg); border-radius: 6px;
+  font-family: var(--mono); font-size: 14px; font-weight: 700; color: var(--accent);
+}
+.form-textarea {
+  width: 100%; padding: 10px 14px; border: 1px solid var(--border);
+  border-radius: 6px; font-size: 13px; line-height: 1.5; resize: vertical;
+  transition: border-color 0.15s; font-family: inherit;
+}
+.form-textarea:focus { outline: none; border-color: var(--accent); }
+.dc-intern { border-left-color: #8b5cf6; }
+.dc-intern .dc-icon { color: #8b5cf6; }
+
 /* ── Expense Page ───────────────────────────────────────────── */
 .expense-form-grid {
   display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;
