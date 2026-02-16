@@ -1,21 +1,22 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../components/AuthProvider';
+import { openInternAttendancePDF, openInternDailyPDF } from '../lib/internPdf';
+
+var DOW = ['日','月','火','水','木','金','土'];
 
 function fmtDate(d) {
   if (!d) return '';
   var dt = new Date(d);
   return dt.getFullYear()+'/'+String(dt.getMonth()+1).padStart(2,'0')+'/'+String(dt.getDate()).padStart(2,'0');
 }
-
 function calcHours(start, end, breakMin) {
   if (!start || !end) return '';
   var sp = start.split(':'), ep = end.split(':');
   var sm = parseInt(sp[0])*60+parseInt(sp[1]), em = parseInt(ep[0])*60+parseInt(ep[1]);
   var diff = em - sm - (breakMin || 0);
   if (diff <= 0) return '0:00';
-  var h = Math.floor(diff/60), m = diff%60;
-  return h+':'+String(m).padStart(2,'0');
+  return Math.floor(diff/60)+':'+String(diff%60).padStart(2,'0');
 }
 
 export default function InternPage() {
@@ -23,11 +24,11 @@ export default function InternPage() {
   var now = new Date();
   var _y = useState(now.getFullYear()), year = _y[0], setYear = _y[1];
   var _m = useState(now.getMonth()+1), month = _m[0], setMonth = _m[1];
+  var _tab = useState('attendance'), tab = _tab[0], setTab = _tab[1];
   var _reports = useState([]), reports = _reports[0], setReports = _reports[1];
   var _ld = useState(true), loading = _ld[0], setLoading = _ld[1];
   var _show = useState(false), showForm = _show[0], setShowForm = _show[1];
   var _editId = useState(null), editId = _editId[0], setEditId = _editId[1];
-  // form
   var _date = useState(now.toISOString().split('T')[0]), rDate = _date[0], setRDate = _date[1];
   var _st = useState(''), startT = _st[0], setStartT = _st[1];
   var _et = useState(''), endT = _et[0], setEndT = _et[1];
@@ -53,10 +54,10 @@ export default function InternPage() {
       .lte('report_date', endDate)
       .order('report_date', { ascending: false })
       .then(function(res) {
-        if (res.error) { console.error('Load error:', res.error); setReports([]); }
+        if (res.error) { console.error(res.error); setReports([]); }
         else { setReports(res.data || []); }
       })
-      .catch(function(err) { console.error('Catch error:', err); setReports([]); })
+      .catch(function() { setReports([]); })
       .finally(function() { setLoading(false); });
   }
 
@@ -70,7 +71,7 @@ export default function InternPage() {
   }
 
   function handleSave() {
-    if (!rDate || !startT || !endT) { flash('日付・開始時刻・終了時刻は必須です'); return; }
+    if (!rDate || !startT || !endT) { flash('日付・開始・終了は必須です'); return; }
     var brkMin = parseInt(brk) || 0;
     var wh = calcHours(startT, endT, brkMin);
     setSaving(true);
@@ -98,7 +99,7 @@ export default function InternPage() {
     setRDate(r.report_date); setStartT(r.start_time); setEndT(r.end_time);
     setBrk(String(r.break_minutes||'')); setTaskDone(r.task_done);
     setTaskLearn(r.task_learned); setTaskNext(r.task_next);
-    setEditId(r.id); setShowForm(true); setDetail(null);
+    setEditId(r.id); setShowForm(true); setDetail(null); setTab('daily');
   }
 
   function handleDelete(id) {
@@ -112,16 +113,14 @@ export default function InternPage() {
 
   var totalMinutes = 0;
   reports.forEach(function(r) {
-    if (r.work_hours) {
-      var p = r.work_hours.split(':');
-      totalMinutes += parseInt(p[0])*60 + parseInt(p[1]||0);
-    }
+    if (r.work_hours) { var p=r.work_hours.split(':'); totalMinutes+=parseInt(p[0])*60+parseInt(p[1]||0); }
   });
-  var totalHours = Math.floor(totalMinutes/60)+':'+String(totalMinutes%60).padStart(2,'0');
+  var totalH = Math.floor(totalMinutes/60)+':'+String(totalMinutes%60).padStart(2,'0');
+  var userName = auth.profile ? auth.profile.full_name : '';
 
   if (loading) return (<div className="page-loading"><div className="spinner"></div><span>読み込み中...</span></div>);
 
-  // 詳細表示
+  // 日報詳細
   if (detail) {
     var d = detail;
     return (
@@ -138,18 +137,9 @@ export default function InternPage() {
               <div className="intern-detail-item"><span className="intern-detail-label">中抜け</span><span className="intern-detail-value">{d.break_minutes}分</span></div>
               <div className="intern-detail-item"><span className="intern-detail-label">稼働時間</span><span className="intern-detail-value intern-hours">{d.work_hours}</span></div>
             </div>
-            <div className="intern-report-section">
-              <h4 className="intern-section-title">📝 やったこと</h4>
-              <p className="intern-section-text">{d.task_done || '—'}</p>
-            </div>
-            <div className="intern-report-section">
-              <h4 className="intern-section-title">💡 わかったこと</h4>
-              <p className="intern-section-text">{d.task_learned || '—'}</p>
-            </div>
-            <div className="intern-report-section">
-              <h4 className="intern-section-title">🚀 次に活かすこと</h4>
-              <p className="intern-section-text">{d.task_next || '—'}</p>
-            </div>
+            <div className="intern-report-section"><h4 className="intern-section-title">📝 やったこと</h4><p className="intern-section-text">{d.task_done || '—'}</p></div>
+            <div className="intern-report-section"><h4 className="intern-section-title">💡 わかったこと</h4><p className="intern-section-text">{d.task_learned || '—'}</p></div>
+            <div className="intern-report-section"><h4 className="intern-section-title">🚀 次に活かすこと</h4><p className="intern-section-text">{d.task_next || '—'}</p></div>
           </div>
           <div className="trip-detail-actions">
             <button className="btn-outline" onClick={function(){handleEdit(d);}}>✏️ 編集</button>
@@ -159,6 +149,11 @@ export default function InternPage() {
       </div>
     );
   }
+
+  // 勤怠一覧（カレンダー形式）
+  var reportMap = {};
+  reports.forEach(function(r){ reportMap[new Date(r.report_date).getDate()] = r; });
+  var daysInMonth = new Date(year, month, 0).getDate();
 
   return (
     <div className="intern-page">
@@ -171,12 +166,22 @@ export default function InternPage() {
           <button className="btn-icon" onClick={nextMonth}>▶</button>
         </div>
         <div className="header-actions">
-          <span className="intern-summary">{reports.length}日出勤 / 合計 {totalHours}</span>
+          <span className="intern-summary">{reports.length}日出勤 / 合計 {totalH}</span>
+          <button className="btn-outline" onClick={function(){
+            if (tab==='attendance') openInternAttendancePDF(reports, year, month, userName);
+            else openInternDailyPDF(reports, year, month, userName);
+          }}>📄 PDF</button>
         </div>
       </div>
 
+      {/* タブ */}
+      <div className="intern-tabs">
+        <button className={'intern-tab'+(tab==='attendance'?' intern-tab-active':'')} onClick={function(){setTab('attendance');}}>📊 勤怠一覧</button>
+        <button className={'intern-tab'+(tab==='daily'?' intern-tab-active':'')} onClick={function(){setTab('daily');}}>📝 日報一覧</button>
+      </div>
+
       <div style={{marginBottom:'12px'}}>
-        <button className="btn-primary" style={{width:'auto',padding:'8px 20px'}} onClick={function(){resetForm();setShowForm(!showForm);}}>
+        <button className="btn-primary" style={{width:'auto',padding:'8px 20px'}} onClick={function(){resetForm();setShowForm(!showForm);setTab('daily');}}>
           {showForm ? '✕ 閉じる' : '📝 日報を書く'}
         </button>
       </div>
@@ -191,22 +196,11 @@ export default function InternPage() {
           </div>
           <div className="expense-form-grid" style={{marginTop:'8px',gridTemplateColumns:'1fr 1fr'}}>
             <div className="form-group"><label className="form-label">中抜け時間（分）</label><input className="form-input" type="number" value={brk} onChange={function(e){setBrk(e.target.value);}} placeholder="0" /></div>
-            <div className="form-group"><label className="form-label">稼働時間（自動計算）</label>
-              <div className="intern-calc-preview">{calcHours(startT, endT, parseInt(brk)||0) || '—'}</div>
-            </div>
+            <div className="form-group"><label className="form-label">稼働時間（自動計算）</label><div className="intern-calc-preview">{calcHours(startT, endT, parseInt(brk)||0) || '—'}</div></div>
           </div>
-          <div className="form-group" style={{marginTop:'12px'}}>
-            <label className="form-label">📝 やったこと</label>
-            <textarea className="form-textarea" rows={3} value={taskDone} onChange={function(e){setTaskDone(e.target.value);}} placeholder="今日やったことを記入..." />
-          </div>
-          <div className="form-group">
-            <label className="form-label">💡 わかったこと</label>
-            <textarea className="form-textarea" rows={3} value={taskLearn} onChange={function(e){setTaskLearn(e.target.value);}} placeholder="今日わかったことを記入..." />
-          </div>
-          <div className="form-group">
-            <label className="form-label">🚀 次に活かすこと</label>
-            <textarea className="form-textarea" rows={3} value={taskNext} onChange={function(e){setTaskNext(e.target.value);}} placeholder="次に活かすことを記入..." />
-          </div>
+          <div className="form-group" style={{marginTop:'12px'}}><label className="form-label">📝 やったこと</label><textarea className="form-textarea" rows={3} value={taskDone} onChange={function(e){setTaskDone(e.target.value);}} placeholder="今日やったこと..." /></div>
+          <div className="form-group"><label className="form-label">💡 わかったこと</label><textarea className="form-textarea" rows={3} value={taskLearn} onChange={function(e){setTaskLearn(e.target.value);}} placeholder="今日わかったこと..." /></div>
+          <div className="form-group"><label className="form-label">🚀 次に活かすこと</label><textarea className="form-textarea" rows={3} value={taskNext} onChange={function(e){setTaskNext(e.target.value);}} placeholder="次に活かすこと..." /></div>
           <div style={{display:'flex',gap:'8px',marginTop:'12px'}}>
             <button className="btn-primary" style={{width:'auto',padding:'10px 24px'}} onClick={handleSave} disabled={saving}>{saving?'保存中...':editId?'更新':'登録'}</button>
             <button className="btn-outline" onClick={resetForm}>キャンセル</button>
@@ -214,33 +208,80 @@ export default function InternPage() {
         </div>
       )}
 
-      {reports.length === 0 ? (
-        <div className="card"><p className="empty-state">この月の日報はありません。「📝 日報を書く」から登録してください。</p></div>
-      ) : (
+      {/* 勤怠一覧タブ */}
+      {tab === 'attendance' && (
         <div className="card" style={{padding:'0',overflow:'hidden'}}>
-          <table className="admin-table">
+          <table className="admin-table intern-attendance-table">
             <thead><tr>
-              <th style={{textAlign:'center',width:'100px'}}>日付</th>
-              <th style={{textAlign:'center',width:'120px'}}>勤務時間</th>
-              <th style={{textAlign:'center',width:'60px'}}>中抜け</th>
-              <th style={{textAlign:'center',width:'70px'}}>稼働</th>
-              <th style={{textAlign:'left'}}>やったこと</th>
+              <th style={{width:'35px'}}>日</th>
+              <th style={{width:'30px'}}>曜</th>
+              <th style={{width:'55px'}}>開始</th>
+              <th style={{width:'55px'}}>終了</th>
+              <th style={{width:'50px'}}>中抜け</th>
+              <th style={{width:'55px'}}>稼働</th>
+              <th>やったこと</th>
             </tr></thead>
             <tbody>
-              {reports.map(function(r){
+              {Array.from({length:daysInMonth}, function(_,i){return i+1;}).map(function(day){
+                var dt = new Date(year, month-1, day);
+                var dow = dt.getDay();
+                var r = reportMap[day];
+                var rowCls = dow===0||dow===6 ? 'intern-weekend-row' : '';
+                var dowCls = dow===0?'sun':dow===6?'sat':'';
                 return (
-                  <tr key={r.id} className="admin-table-row" style={{cursor:'pointer'}} onClick={function(){setDetail(r);}}>
-                    <td style={{textAlign:'center'}}>{fmtDate(r.report_date)}</td>
-                    <td style={{textAlign:'center'}}>{r.start_time}〜{r.end_time}</td>
-                    <td style={{textAlign:'center'}}>{r.break_minutes}分</td>
-                    <td style={{textAlign:'center',fontFamily:'var(--mono)',fontWeight:600}}>{r.work_hours}</td>
-                    <td style={{textAlign:'left',maxWidth:'200px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.task_done}</td>
+                  <tr key={day} className={rowCls} style={{cursor:r?'pointer':'default'}} onClick={function(){if(r)setDetail(r);}}>
+                    <td style={{textAlign:'center'}}>{day}</td>
+                    <td style={{textAlign:'center'}} className={dowCls}>{DOW[dow]}</td>
+                    <td style={{textAlign:'center'}}>{r?r.start_time:''}</td>
+                    <td style={{textAlign:'center'}}>{r?r.end_time:''}</td>
+                    <td style={{textAlign:'center'}}>{r?r.break_minutes+'分':''}</td>
+                    <td style={{textAlign:'center',fontFamily:'var(--mono)',fontWeight:r?700:400}}>{r?r.work_hours:''}</td>
+                    <td style={{textAlign:'left',maxWidth:'250px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontSize:'11px'}}>{r?r.task_done:''}</td>
                   </tr>
                 );
               })}
             </tbody>
+            <tfoot>
+              <tr style={{background:'var(--bg)'}}>
+                <td colSpan={5} style={{textAlign:'right',fontWeight:700}}>月合計</td>
+                <td style={{textAlign:'center',fontFamily:'var(--mono)',fontWeight:700}}>{totalH}</td>
+                <td></td>
+              </tr>
+            </tfoot>
           </table>
         </div>
+      )}
+
+      {/* 日報一覧タブ */}
+      {tab === 'daily' && !showForm && (
+        reports.length === 0 ? (
+          <div className="card"><p className="empty-state">この月の日報はありません。</p></div>
+        ) : (
+          <div className="card" style={{padding:'0',overflow:'hidden'}}>
+            <table className="admin-table">
+              <thead><tr>
+                <th style={{textAlign:'center',width:'100px'}}>日付</th>
+                <th style={{textAlign:'center',width:'120px'}}>勤務時間</th>
+                <th style={{textAlign:'center',width:'60px'}}>中抜け</th>
+                <th style={{textAlign:'center',width:'70px'}}>稼働</th>
+                <th style={{textAlign:'left'}}>やったこと</th>
+              </tr></thead>
+              <tbody>
+                {reports.map(function(r){
+                  return (
+                    <tr key={r.id} className="admin-table-row" style={{cursor:'pointer'}} onClick={function(){setDetail(r);}}>
+                      <td style={{textAlign:'center'}}>{fmtDate(r.report_date)}</td>
+                      <td style={{textAlign:'center'}}>{r.start_time}〜{r.end_time}</td>
+                      <td style={{textAlign:'center'}}>{r.break_minutes}分</td>
+                      <td style={{textAlign:'center',fontFamily:'var(--mono)',fontWeight:600}}>{r.work_hours}</td>
+                      <td style={{textAlign:'left',maxWidth:'200px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.task_done}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )
       )}
     </div>
   );

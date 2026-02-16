@@ -695,6 +695,21 @@ body {
 .at-btn:hover { border-color: var(--accent); }
 .at-active { border-color: var(--accent); background: #eff6ff; color: var(--accent); }
 
+.intern-tabs { display: flex; gap: 4px; margin-bottom: 12px; background: var(--bg); padding: 4px; border-radius: 8px; }
+.intern-tab {
+  flex: 1; padding: 8px 16px; border: none; border-radius: 6px;
+  background: transparent; font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: all 0.15s; color: var(--text-muted);
+}
+.intern-tab:hover { color: var(--text); }
+.intern-tab-active { background: white; color: var(--accent); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+.intern-attendance-table td { font-size: 12px; padding: 5px 6px; }
+.intern-attendance-table th { font-size: 11px; padding: 6px; }
+.intern-weekend-row { background: #f8fafc; }
+.intern-weekend-row td { color: #94a3b8; }
+.sun { color: #dc2626 !important; }
+.sat { color: #2563eb !important; }
+
 /* ── Intern Page ──────────────────────────────────────────── */
 .intern-page { max-width: 800px; margin: 0 auto; }
 .intern-summary { font-size: 13px; font-weight: 600; color: var(--accent); background: #eff6ff; padding: 4px 12px; border-radius: 6px; }
