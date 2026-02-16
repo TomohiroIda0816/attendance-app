@@ -706,6 +706,23 @@ body {
 .expense-cat-書籍代 { background: #fef3c7; color: #92400e; }
 .expense-cat-その他 { background: #f3f4f6; color: #374151; }
 
+.receipt-attached {
+  display: block; margin-top: 8px; font-size: 12px; color: var(--success); font-weight: 600;
+}
+.receipt-preview-section { margin-top: 20px; margin-bottom: 20px; }
+.receipt-preview-box {
+  border: 1px solid var(--border-light); border-radius: 8px;
+  padding: 16px; background: var(--bg); text-align: center;
+}
+.receipt-image {
+  max-width: 100%; max-height: 500px; border-radius: 4px;
+  box-shadow: var(--shadow);
+}
+.receipt-pdf-notice {
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  padding: 20px; font-size: 14px;
+}
+
 @media (max-width: 768px) {
   .expense-form-grid { grid-template-columns: 1fr; }
 }

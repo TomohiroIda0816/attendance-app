@@ -11,6 +11,16 @@ function fmtDate(d) {
 function statusClass(s) {
   return {'未作成':'badge-none','下書き':'badge-draft','申請済':'badge-submitted','承認済':'badge-approved','差戻し':'badge-rejected'}[s]||'badge-draft';
 }
+function getDetail(e) {
+  if (e.category==='旅費交通費') {
+    var p = [];
+    if (e.travel_from||e.travel_to) p.push((e.travel_from||'')+'→'+(e.travel_to||''));
+    if (e.travel_method) p.push(e.travel_method);
+    return p.join(' / ');
+  }
+  if (e.category==='書籍代'&&e.book_title) return e.book_title;
+  return e.description;
+}
 
 export default function ExpenseAdminPage() {
   var auth = useAuth();
@@ -20,12 +30,16 @@ export default function ExpenseAdminPage() {
   var _users = useState([]), users = _users[0], setUsers = _users[1];
   var _ld = useState(true), loading = _ld[0], setLoading = _ld[1];
   var _detail = useState(null), detail = _detail[0], setDetail = _detail[1];
+  var _receipt = useState(null), receiptView = _receipt[0], setReceiptView = _receipt[1];
   var _t = useState(''), toast = _t[0], setToast = _t[1];
+  var _showKey = useState(false), showKeyInput = _showKey[0], setShowKeyInput = _showKey[1];
+  var _apiKey = useState(function(){try{return localStorage.getItem('anthropic_api_key')||'';}catch(e){return '';}});
+  var apiKey = _apiKey[0], setApiKey = _apiKey[1];
 
   function flash(msg) { setToast(msg); setTimeout(function(){setToast('');}, 2500); }
 
   function loadData() {
-    setLoading(true); setDetail(null);
+    setLoading(true); setDetail(null); setReceiptView(null);
     supabase.from('profiles').select('*').order('full_name')
       .then(function(profRes) {
         if (!profRes.data) { setUsers([]); setLoading(false); return; }
@@ -58,9 +72,50 @@ export default function ExpenseAdminPage() {
       .catch(function(){ flash('更新に失敗しました'); });
   }
 
+  function saveApiKey() {
+    try{localStorage.setItem('anthropic_api_key', apiKey);}catch(e){}
+    setShowKeyInput(false); flash('APIキーを保存しました');
+  }
+
   function prevMonth(){if(month===1){setMonth(12);setYear(year-1);}else{setMonth(month-1);}}
   function nextMonth(){if(month===12){setMonth(1);setYear(year+1);}else{setMonth(month+1);}}
 
+  // 領収書プレビュー
+  if (receiptView) {
+    return (
+      <div className="expense-page">
+        <div className="month-header">
+          <button className="btn-ghost" onClick={function(){setReceiptView(null);}}>← 戻る</button>
+          <h2 className="month-title">領収書</h2>
+        </div>
+        <div className="card">
+          <div className="trip-detail-grid">
+            <div className="trip-detail-item"><span className="trip-detail-label">日付</span><span className="trip-detail-value">{fmtDate(receiptView.expense_date)}</span></div>
+            <div className="trip-detail-item"><span className="trip-detail-label">費目</span><span className="trip-detail-value">{receiptView.category}</span></div>
+            <div className="trip-detail-item"><span className="trip-detail-label">金額</span><span className="trip-detail-value">¥{receiptView.amount.toLocaleString()}</span></div>
+            <div className="trip-detail-item"><span className="trip-detail-label">内容</span><span className="trip-detail-value">{getDetail(receiptView)}</span></div>
+          </div>
+          {receiptView.receipt_data && (
+            <div className="receipt-preview-section">
+              <h3 className="trip-breakdown-title">領収書画像</h3>
+              <div className="receipt-preview-box">
+                {receiptView.receipt_filename && receiptView.receipt_filename.toLowerCase().endsWith('.pdf') ? (
+                  <div className="receipt-pdf-notice">
+                    <span>📄 {receiptView.receipt_filename}</span>
+                    <a href={'data:application/pdf;base64,'+receiptView.receipt_data} target="_blank" rel="noopener" className="btn-small">PDFを開く</a>
+                  </div>
+                ) : (
+                  <img src={'data:image/png;base64,'+receiptView.receipt_data} alt="領収書" className="receipt-image" />
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ユーザー詳細ビュー
   if (detail) {
     var u = detail.user, rpt = detail.report, ent = detail.entries;
     var grandTotal = 0;
@@ -93,23 +148,17 @@ export default function ExpenseAdminPage() {
                 <th style={{textAlign:'center',width:'80px'}}>日付</th>
                 <th style={{textAlign:'center',width:'90px'}}>費目</th>
                 <th style={{textAlign:'left'}}>内容</th>
+                <th style={{textAlign:'center',width:'30px'}}>📎</th>
                 <th style={{textAlign:'right',width:'100px'}}>金額</th>
               </tr></thead>
               <tbody>
                 {ent.map(function(e){
-                  var d = '';
-                  if (e.category==='旅費交通費') {
-                    var p = [];
-                    if (e.travel_from||e.travel_to) p.push((e.travel_from||'')+'→'+(e.travel_to||''));
-                    if (e.travel_method) p.push(e.travel_method);
-                    d = p.join(' / ');
-                  } else if (e.category==='書籍代'&&e.book_title) { d=e.book_title; }
-                  else { d=e.description; }
                   return (
-                    <tr key={e.id} className="admin-table-row">
+                    <tr key={e.id} className="admin-table-row" style={{cursor: e.receipt_data ? 'pointer' : 'default'}} onClick={function(){if(e.receipt_data)setReceiptView(e);}}>
                       <td style={{textAlign:'center'}}>{fmtDate(e.expense_date)}</td>
                       <td style={{textAlign:'center'}}><span className={'expense-cat expense-cat-'+e.category}>{e.category}</span></td>
-                      <td style={{textAlign:'left'}}>{d}</td>
+                      <td style={{textAlign:'left'}}>{getDetail(e)}</td>
+                      <td style={{textAlign:'center'}}>{e.receipt_data ? '📎' : ''}</td>
                       <td style={{textAlign:'right',fontFamily:'var(--mono)',fontWeight:600}}>¥{e.amount.toLocaleString()}</td>
                     </tr>
                   );
@@ -117,7 +166,7 @@ export default function ExpenseAdminPage() {
               </tbody>
               <tfoot>
                 <tr style={{background:'var(--bg)'}}>
-                  <td colSpan={3} style={{textAlign:'right',fontWeight:700,padding:'10px 8px'}}>月合計</td>
+                  <td colSpan={4} style={{textAlign:'right',fontWeight:700,padding:'10px 8px'}}>月合計</td>
                   <td style={{textAlign:'right',fontFamily:'var(--mono)',fontWeight:700,fontSize:'14px',padding:'10px 8px'}}>¥{grandTotal.toLocaleString()}</td>
                 </tr>
               </tfoot>
@@ -128,6 +177,7 @@ export default function ExpenseAdminPage() {
     );
   }
 
+  // 月別ユーザー一覧
   return (
     <div className="expense-page">
       {toast && <div className="toast">{toast}</div>}
@@ -138,12 +188,25 @@ export default function ExpenseAdminPage() {
           <button className="btn-icon" onClick={nextMonth}>▶</button>
         </div>
         <div className="header-actions">
+          <button className="btn-outline" style={{fontSize:'11px'}} onClick={function(){setShowKeyInput(!showKeyInput);}}>🔑 API設定</button>
           <span className="admin-summary">全{users.length}名
             {users.filter(function(u){return u.status==='申請済';}).length>0 &&
               <span className="admin-pending"> / 未承認: {users.filter(function(u){return u.status==='申請済';}).length}名</span>}
           </span>
         </div>
       </div>
+
+      {showKeyInput && (
+        <div className="card" style={{marginBottom:'12px'}}>
+          <h3 className="card-title">Anthropic APIキー設定</h3>
+          <p className="card-desc">領収書の自動読み取りに使用するAPIキーです。全ユーザー共通でこのブラウザに保存されます。</p>
+          <div style={{display:'flex',gap:'8px',alignItems:'center'}}>
+            <input className="form-input" type="password" value={apiKey} onChange={function(e){setApiKey(e.target.value);}} placeholder="sk-ant-..." style={{maxWidth:'400px'}} />
+            <button className="btn-primary" style={{width:'auto',padding:'8px 16px'}} onClick={saveApiKey}>保存</button>
+          </div>
+        </div>
+      )}
+
       {loading ? (<div className="page-loading"><div className="spinner"></div><span>読み込み中...</span></div>) : (
         <div className="card" style={{padding:'0',overflow:'hidden'}}>
           <table className="admin-table">

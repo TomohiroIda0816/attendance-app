@@ -16,6 +16,10 @@ function statusClass(s) {
   return {'下書き':'badge-draft','申請済':'badge-submitted','承認済':'badge-approved','差戻し':'badge-rejected'}[s]||'badge-draft';
 }
 
+function getApiKey() {
+  try { return localStorage.getItem('anthropic_api_key') || ''; } catch(e) { return ''; }
+}
+
 async function analyzeReceipt(file, apiKey) {
   var reader = new FileReader();
   var base64 = await new Promise(function(resolve, reject) {
@@ -56,7 +60,16 @@ async function analyzeReceipt(file, apiKey) {
     }
   }
   var clean = text.replace(/```json|```/g, '').trim();
-  return JSON.parse(clean);
+  return { parsed: JSON.parse(clean), base64: base64, mediaType: mediaType };
+}
+
+async function fileToBase64(file) {
+  return new Promise(function(resolve, reject) {
+    var r = new FileReader();
+    r.onload = function() { resolve(r.result.split(',')[1]); };
+    r.onerror = function() { reject(new Error('読み込みエラー')); };
+    r.readAsDataURL(file);
+  });
 }
 
 export default function ExpensePage() {
@@ -78,12 +91,13 @@ export default function ExpensePage() {
   var _to = useState(''), tTo = _to[0], setTTo = _to[1];
   var _method = useState(''), tMethod = _method[0], setTMethod = _method[1];
   var _book = useState(''), bookTitle = _book[0], setBookTitle = _book[1];
+  var _receiptData = useState(''), receiptData = _receiptData[0], setReceiptData = _receiptData[1];
+  var _receiptName = useState(''), receiptName = _receiptName[0], setReceiptName = _receiptName[1];
+  var _receiptType = useState(''), receiptType = _receiptType[0], setReceiptType = _receiptType[1];
   var _saving = useState(false), saving = _saving[0], setSaving = _saving[1];
   var _analyzing = useState(false), analyzing = _analyzing[0], setAnalyzing = _analyzing[1];
   var _t = useState(''), toast = _t[0], setToast = _t[1];
-  var _apiKey = useState(function() { try { return localStorage.getItem('anthropic_api_key') || ''; } catch(e) { return ''; } });
-  var apiKey = _apiKey[0], setApiKey = _apiKey[1];
-  var _showKey = useState(false), showKeyInput = _showKey[0], setShowKeyInput = _showKey[1];
+  var _detail = useState(null), detailEntry = _detail[0], setDetailEntry = _detail[1];
   var fileRef = useRef(null);
 
   function flash(msg) { setToast(msg); setTimeout(function(){setToast('');}, 2500); }
@@ -117,6 +131,7 @@ export default function ExpensePage() {
   function resetForm() {
     setExpDate(''); setCat('その他'); setAmt(''); setDesc('');
     setTFrom(''); setTTo(''); setTMethod(''); setBookTitle('');
+    setReceiptData(''); setReceiptName(''); setReceiptType('');
     setEditId(null); setShowForm(false);
     if (fileRef.current) fileRef.current.value = '';
   }
@@ -124,10 +139,27 @@ export default function ExpensePage() {
   function handleFileUpload(e) {
     var file = e.target.files[0];
     if (!file) return;
-    if (!apiKey) { flash('APIキーを設定してください'); setShowKeyInput(true); return; }
+
+    var apiKey = getApiKey();
+
+    // APIキーがない場合は画像だけ保存
+    if (!apiKey) {
+      fileToBase64(file).then(function(b64) {
+        setReceiptData(b64);
+        setReceiptName(file.name);
+        setReceiptType(file.type);
+        flash('領収書を添付しました（APIキー未設定のため自動読み取りはスキップ）');
+      });
+      return;
+    }
+
     setAnalyzing(true);
     analyzeReceipt(file, apiKey)
-      .then(function(result) {
+      .then(function(res) {
+        var result = res.parsed;
+        setReceiptData(res.base64);
+        setReceiptName(file.name);
+        setReceiptType(res.mediaType);
         if (result.category && CATEGORIES.indexOf(result.category) >= 0) setCat(result.category);
         if (result.amount) setAmt(String(Math.round(Number(result.amount))));
         if (result.description) setDesc(result.description);
@@ -140,7 +172,12 @@ export default function ExpensePage() {
       })
       .catch(function(err) {
         console.error('Receipt analysis error:', err);
-        flash('読み取りに失敗しました。手動で入力してください。');
+        fileToBase64(file).then(function(b64) {
+          setReceiptData(b64);
+          setReceiptName(file.name);
+          setReceiptType(file.type);
+        });
+        flash('自動読み取りに失敗しました。手動で入力してください。');
       })
       .finally(function() { setAnalyzing(false); });
   }
@@ -152,6 +189,7 @@ export default function ExpensePage() {
       report_id: reportId, expense_date: expDate, category: cat,
       amount: Math.round(Number(amt)) || 0, description: desc,
       travel_from: tFrom, travel_to: tTo, travel_method: tMethod, book_title: bookTitle,
+      receipt_data: receiptData, receipt_filename: receiptName,
     };
     var p = editId
       ? supabase.from('expense_entries').update(data).eq('id', editId)
@@ -165,13 +203,14 @@ export default function ExpensePage() {
     setExpDate(e.expense_date); setCat(e.category); setAmt(String(e.amount));
     setDesc(e.description); setTFrom(e.travel_from||''); setTTo(e.travel_to||'');
     setTMethod(e.travel_method||''); setBookTitle(e.book_title||'');
-    setEditId(e.id); setShowForm(true);
+    setReceiptData(e.receipt_data||''); setReceiptName(e.receipt_filename||'');
+    setEditId(e.id); setShowForm(true); setDetailEntry(null);
   }
 
   function handleDeleteEntry(id) {
     if (!confirm('この経費を削除しますか？')) return;
     supabase.from('expense_entries').delete().eq('id', id)
-      .then(function() { flash('削除しました'); loadData(); })
+      .then(function() { flash('削除しました'); setDetailEntry(null); loadData(); })
       .catch(function() { flash('削除に失敗しました'); });
   }
 
@@ -193,19 +232,102 @@ export default function ExpensePage() {
       .finally(function() { setSaving(false); });
   }
 
-  function saveApiKey() {
-    try { localStorage.setItem('anthropic_api_key', apiKey); } catch(e) {}
-    setShowKeyInput(false); flash('APIキーを保存しました');
-  }
-
   function prevMonth(){if(month===1){setMonth(12);setYear(year-1);}else{setMonth(month-1);}}
   function nextMonth(){if(month===12){setMonth(1);setYear(year+1);}else{setMonth(month+1);}}
+
+  function getDetail(e) {
+    var d = '';
+    if (e.category==='旅費交通費') {
+      var p = [];
+      if (e.travel_from||e.travel_to) p.push((e.travel_from||'')+'→'+(e.travel_to||''));
+      if (e.travel_method) p.push(e.travel_method);
+      d = p.join(' / ');
+    } else if (e.category==='書籍代'&&e.book_title) { d=e.book_title; }
+    else { d=e.description; }
+    return d;
+  }
 
   var grandTotal = 0;
   entries.forEach(function(e){grandTotal += e.amount;});
   var isEditable = status === '下書き' || status === '差戻し';
 
   if (loading) return (<div className="page-loading"><div className="spinner"></div><span>読み込み中...</span></div>);
+
+  // 詳細ビュー（領収書画像表示）
+  if (detailEntry) {
+    var de = detailEntry;
+    return (
+      <div className="expense-page">
+        {toast && <div className="toast">{toast}</div>}
+        <div className="month-header">
+          <button className="btn-ghost" onClick={function(){setDetailEntry(null);}}>← 戻る</button>
+          <h2 className="month-title">経費詳細</h2>
+        </div>
+        <div className="card">
+          <div className="trip-detail-grid">
+            <div className="trip-detail-item">
+              <span className="trip-detail-label">日付</span>
+              <span className="trip-detail-value">{fmtDate(de.expense_date)}</span>
+            </div>
+            <div className="trip-detail-item">
+              <span className="trip-detail-label">費目</span>
+              <span className="trip-detail-value"><span className={'expense-cat expense-cat-'+de.category}>{de.category}</span></span>
+            </div>
+            <div className="trip-detail-item">
+              <span className="trip-detail-label">金額</span>
+              <span className="trip-detail-value">¥{de.amount.toLocaleString()}</span>
+            </div>
+            <div className="trip-detail-item">
+              <span className="trip-detail-label">内容</span>
+              <span className="trip-detail-value">{getDetail(de)}</span>
+            </div>
+            {de.category==='旅費交通費' && de.travel_from && (
+              <div className="trip-detail-item">
+                <span className="trip-detail-label">区間</span>
+                <span className="trip-detail-value">{de.travel_from} → {de.travel_to}</span>
+              </div>
+            )}
+            {de.category==='旅費交通費' && de.travel_method && (
+              <div className="trip-detail-item">
+                <span className="trip-detail-label">交通手段</span>
+                <span className="trip-detail-value">{de.travel_method}</span>
+              </div>
+            )}
+            {de.category==='書籍代' && de.book_title && (
+              <div className="trip-detail-item">
+                <span className="trip-detail-label">書籍名</span>
+                <span className="trip-detail-value">{de.book_title}</span>
+              </div>
+            )}
+          </div>
+
+          {/* 領収書画像 */}
+          {de.receipt_data && (
+            <div className="receipt-preview-section">
+              <h3 className="trip-breakdown-title">領収書</h3>
+              <div className="receipt-preview-box">
+                {de.receipt_filename && de.receipt_filename.toLowerCase().endsWith('.pdf') ? (
+                  <div className="receipt-pdf-notice">
+                    <span>📄 {de.receipt_filename}</span>
+                    <a href={'data:application/pdf;base64,'+de.receipt_data} target="_blank" rel="noopener" className="btn-small">PDFを開く</a>
+                  </div>
+                ) : (
+                  <img src={'data:image/png;base64,'+de.receipt_data} alt="領収書" className="receipt-image" />
+                )}
+              </div>
+            </div>
+          )}
+
+          {isEditable && (
+            <div className="trip-detail-actions">
+              <button className="btn-outline" onClick={function(){handleEdit(de);}}>✏️ 編集</button>
+              <button className="btn-danger" onClick={function(){handleDeleteEntry(de.id);}}>🗑 削除</button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="expense-page">
@@ -219,7 +341,6 @@ export default function ExpensePage() {
         </div>
         <div className="header-actions">
           <span className={'status-badge '+statusClass(status)}>{status}</span>
-          <button className="btn-outline" style={{fontSize:'11px'}} onClick={function(){setShowKeyInput(!showKeyInput);}}>🔑 API設定</button>
           <button className="btn-outline" onClick={function(){openExpensePDF(entries,year,month,auth.profile?auth.profile.full_name:'',status);}}>📄 PDF</button>
           {status==='申請済'||status==='承認済' ? (
             <button className="btn-danger" onClick={handleUnsubmit} disabled={saving||status==='承認済'}>{status==='承認済'?'承認済':'申請取消'}</button>
@@ -229,19 +350,6 @@ export default function ExpensePage() {
         </div>
       </div>
 
-      {/* APIキー設定 */}
-      {showKeyInput && (
-        <div className="card" style={{marginBottom:'12px'}}>
-          <h3 className="card-title">Anthropic APIキー設定</h3>
-          <p className="card-desc">領収書の自動読み取りにClaude APIを使用します。キーはブラウザのローカルに保存されます。</p>
-          <div style={{display:'flex',gap:'8px',alignItems:'center'}}>
-            <input className="form-input" type="password" value={apiKey} onChange={function(e){setApiKey(e.target.value);}} placeholder="sk-ant-..." style={{maxWidth:'400px'}} />
-            <button className="btn-primary" style={{width:'auto',padding:'8px 16px'}} onClick={saveApiKey}>保存</button>
-          </div>
-        </div>
-      )}
-
-      {/* 新規登録ボタン */}
       {isEditable && (
         <div style={{marginBottom:'12px'}}>
           <button className="btn-primary" style={{width:'auto',padding:'8px 20px'}} onClick={function(){resetForm();setShowForm(!showForm);}}>
@@ -250,18 +358,17 @@ export default function ExpensePage() {
         </div>
       )}
 
-      {/* 入力フォーム */}
       {showForm && isEditable && (
         <div className="card" style={{marginBottom:'16px'}}>
           <h3 className="card-title">{editId ? '経費を編集' : '新規経費'}</h3>
 
-          {/* 領収書アップロード */}
           <div className="receipt-upload">
             <label className="receipt-label">
               {analyzing ? '🔄 読み取り中...' : '📎 領収書を読み込む（PDF/画像）'}
               <input ref={fileRef} type="file" accept="image/*,.pdf" onChange={handleFileUpload} disabled={analyzing} style={{display:'none'}} />
             </label>
-            <span className="receipt-hint">領収書をアップロードすると自動で費目と金額を入力します</span>
+            <span className="receipt-hint">{getApiKey() ? '領収書をアップロードすると自動で費目と金額を入力します' : '領収書を添付できます（自動読み取りにはAPI設定が必要です）'}</span>
+            {receiptName && <span className="receipt-attached">✅ {receiptName} を添付済み</span>}
           </div>
 
           <div className="expense-form-grid">
@@ -281,7 +388,6 @@ export default function ExpensePage() {
             </div>
           </div>
 
-          {/* 旅費交通費の追加フィールド */}
           {cat === '旅費交通費' && (
             <div className="expense-form-grid" style={{marginTop:'8px'}}>
               <div className="form-group">
@@ -302,7 +408,6 @@ export default function ExpensePage() {
             </div>
           )}
 
-          {/* 書籍代の追加フィールド */}
           {cat === '書籍代' && (
             <div style={{marginTop:'8px'}}>
               <div className="form-group">
@@ -312,7 +417,6 @@ export default function ExpensePage() {
             </div>
           )}
 
-          {/* 備考（その他の場合） */}
           {cat === 'その他' && (
             <div style={{marginTop:'8px'}}>
               <div className="form-group">
@@ -329,7 +433,6 @@ export default function ExpensePage() {
         </div>
       )}
 
-      {/* 経費一覧テーブル */}
       {entries.length === 0 ? (
         <div className="card"><p className="empty-state">この月の経費記録はありません。{isEditable ? '「経費を追加」から登録してください。' : ''}</p></div>
       ) : (
@@ -340,31 +443,22 @@ export default function ExpensePage() {
                 <th style={{textAlign:'center',width:'80px'}}>日付</th>
                 <th style={{textAlign:'center',width:'90px'}}>費目</th>
                 <th style={{textAlign:'left'}}>内容</th>
+                <th style={{textAlign:'center',width:'30px'}}>📎</th>
                 <th style={{textAlign:'right',width:'100px'}}>金額</th>
                 {isEditable && <th style={{textAlign:'center',width:'100px'}}>操作</th>}
               </tr>
             </thead>
             <tbody>
               {entries.map(function(e){
-                var detail = '';
-                if (e.category==='旅費交通費') {
-                  var parts = [];
-                  if (e.travel_from||e.travel_to) parts.push((e.travel_from||'')+'→'+(e.travel_to||''));
-                  if (e.travel_method) parts.push(e.travel_method);
-                  detail = parts.join(' / ');
-                } else if (e.category==='書籍代' && e.book_title) {
-                  detail = e.book_title;
-                } else {
-                  detail = e.description;
-                }
                 return (
-                  <tr key={e.id} className="admin-table-row">
+                  <tr key={e.id} className="admin-table-row" style={{cursor:'pointer'}} onClick={function(){setDetailEntry(e);}}>
                     <td style={{textAlign:'center'}}>{fmtDate(e.expense_date)}</td>
                     <td style={{textAlign:'center'}}><span className={'expense-cat expense-cat-'+e.category}>{e.category}</span></td>
-                    <td style={{textAlign:'left'}}>{detail}</td>
+                    <td style={{textAlign:'left'}}>{getDetail(e)}</td>
+                    <td style={{textAlign:'center'}}>{e.receipt_data ? '📎' : ''}</td>
                     <td style={{textAlign:'right',fontFamily:'var(--mono)',fontWeight:600}}>¥{e.amount.toLocaleString()}</td>
                     {isEditable && (
-                      <td style={{textAlign:'center'}}>
+                      <td style={{textAlign:'center'}} onClick={function(ev){ev.stopPropagation();}}>
                         <div className="admin-actions">
                           <button className="btn-small" onClick={function(){handleEdit(e);}}>編集</button>
                           <button className="btn-small btn-small-reject" onClick={function(){handleDeleteEntry(e.id);}}>削除</button>
@@ -377,7 +471,7 @@ export default function ExpensePage() {
             </tbody>
             <tfoot>
               <tr style={{background:'var(--bg)'}}>
-                <td colSpan={isEditable?3:3} style={{textAlign:'right',fontWeight:700,padding:'10px 8px'}}>月合計</td>
+                <td colSpan={isEditable?4:4} style={{textAlign:'right',fontWeight:700,padding:'10px 8px'}}>月合計</td>
                 <td style={{textAlign:'right',fontFamily:'var(--mono)',fontWeight:700,fontSize:'14px',padding:'10px 8px'}}>¥{grandTotal.toLocaleString()}</td>
                 {isEditable && <td></td>}
               </tr>
