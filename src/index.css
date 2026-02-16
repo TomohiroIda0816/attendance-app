@@ -678,6 +678,13 @@ body {
   .trip-detail-grid { grid-template-columns: 1fr 1fr; }
 }
 
+/* ── Profile ────────────────────────────────────────────────── */
+.profile-section-title {
+  font-size: 14px; font-weight: 700; color: var(--text);
+  margin-bottom: 12px;
+}
+.nav-user-icon { font-size: 14px; }
+
 /* ── Expense Page ───────────────────────────────────────────── */
 .expense-form-grid {
   display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;

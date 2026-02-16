@@ -9,6 +9,7 @@ import TripPage from './pages/TripPage';
 import TripAdminPage from './pages/TripAdminPage';
 import ExpensePage from './pages/ExpensePage';
 import ExpenseAdminPage from './pages/ExpenseAdminPage';
+import ProfilePage from './pages/ProfilePage';
 
 export default function App() {
   var auth = useAuth();
@@ -25,13 +26,29 @@ export default function App() {
   if (auth.loading) { return (<div className="loading-screen"><div className="spinner"></div><p>読み込み中...</p></div>); }
   if (!auth.user) return (<AuthPage />);
 
+  // プロフィール画面
+  if (module === 'profile') {
+    return (
+      <div className="app-container">
+        <header className="app-header">
+          <div className="header-left"><button className="btn-home" onClick={function(){setModule('home');}}>◀ ホーム</button><span className="header-logo">👤</span><span className="header-brand">アカウント設定</span></div>
+          <nav className="header-nav"><button className="nav-logout" onClick={function(){auth.signOut();}}>ログアウト</button></nav>
+        </header>
+        <main className="app-main"><ProfilePage /></main>
+      </div>
+    );
+  }
+
   // ホーム画面
   if (module === 'home') {
     return (
       <div className="app-container">
         <header className="app-header">
-          <div className="header-left"><span className="header-logo">📋</span><span className="header-brand">業務管理システム</span><span className="header-user">{auth.profile?auth.profile.full_name:''}</span></div>
-          <nav className="header-nav"><button className="nav-logout" onClick={function(){auth.signOut();}}>ログアウト</button></nav>
+          <div className="header-left"><span className="header-logo">📋</span><span className="header-brand">業務管理システム</span></div>
+          <nav className="header-nav">
+            <button className="nav-btn" onClick={function(){setModule('profile');}}><span className="nav-user-icon">👤</span> {auth.profile?auth.profile.full_name:''}</button>
+            <button className="nav-logout" onClick={function(){auth.signOut();}}>ログアウト</button>
+          </nav>
         </header>
         <main className="dashboard-main">
           <div className="dashboard-greeting"><h1 className="dashboard-title">{'こんにちは、'+(auth.profile?auth.profile.full_name:'')+'さん'}</h1><p className="dashboard-subtitle">メニューを選択してください</p></div>
@@ -55,10 +72,11 @@ export default function App() {
     return (
       <div className="app-container">
         <header className="app-header">
-          <div className="header-left"><button className="btn-home" onClick={function(){setModule('home');}}>◀ ホーム</button><span className="header-logo">✈️</span><span className="header-brand">出張管理</span><span className="header-user">{auth.profile?auth.profile.full_name:''}</span></div>
+          <div className="header-left"><button className="btn-home" onClick={function(){setModule('home');}}>◀ ホーム</button><span className="header-logo">✈️</span><span className="header-brand">出張管理</span></div>
           <nav className="header-nav">
             <button className={tripView==='trips'?'nav-btn nav-active':'nav-btn'} onClick={function(){setTripView('trips');}}>出張一覧</button>
             {auth.isAdmin&&<button className={tripView==='admin'?'nav-btn nav-active':'nav-btn'} onClick={function(){setTripView('admin');}}>管理者</button>}
+            <button className="nav-btn" onClick={function(){setModule('profile');}}>👤</button>
             <button className="nav-logout" onClick={function(){auth.signOut();}}>ログアウト</button>
           </nav>
         </header>
@@ -75,10 +93,11 @@ export default function App() {
     return (
       <div className="app-container">
         <header className="app-header">
-          <div className="header-left"><button className="btn-home" onClick={function(){setModule('home');}}>◀ ホーム</button><span className="header-logo">💰</span><span className="header-brand">経費管理</span><span className="header-user">{auth.profile?auth.profile.full_name:''}</span></div>
+          <div className="header-left"><button className="btn-home" onClick={function(){setModule('home');}}>◀ ホーム</button><span className="header-logo">💰</span><span className="header-brand">経費管理</span></div>
           <nav className="header-nav">
             <button className={expView==='expenses'?'nav-btn nav-active':'nav-btn'} onClick={function(){setExpView('expenses');}}>経費一覧</button>
             {auth.isAdmin&&<button className={expView==='admin'?'nav-btn nav-active':'nav-btn'} onClick={function(){setExpView('admin');}}>管理者</button>}
+            <button className="nav-btn" onClick={function(){setModule('profile');}}>👤</button>
             <button className="nav-logout" onClick={function(){auth.signOut();}}>ログアウト</button>
           </nav>
         </header>
@@ -94,12 +113,13 @@ export default function App() {
   return (
     <div className="app-container">
       <header className="app-header">
-        <div className="header-left"><button className="btn-home" onClick={function(){setModule('home');}}>◀ ホーム</button><span className="header-logo">⏱</span><span className="header-brand">勤怠管理</span><span className="header-user">{auth.profile?auth.profile.full_name:''}</span></div>
+        <div className="header-left"><button className="btn-home" onClick={function(){setModule('home');}}>◀ ホーム</button><span className="header-logo">⏱</span><span className="header-brand">勤怠管理</span></div>
         <nav className="header-nav">
           <button className={view==='attendance'?'nav-btn nav-active':'nav-btn'} onClick={function(){setView('attendance');}}>勤怠入力</button>
           <button className={view==='months'?'nav-btn nav-active':'nav-btn'} onClick={function(){setView('months');}}>月別一覧</button>
           <button className={view==='settings'?'nav-btn nav-active':'nav-btn'} onClick={function(){setView('settings');}}>設定</button>
           {auth.isAdmin&&<button className={view==='admin'?'nav-btn nav-active':'nav-btn'} onClick={function(){setView('admin');}}>管理者</button>}
+          <button className="nav-btn" onClick={function(){setModule('profile');}}>👤</button>
           <button className="nav-logout" onClick={function(){auth.signOut();}}>ログアウト</button>
         </nav>
       </header>
