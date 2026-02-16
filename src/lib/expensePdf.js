@@ -17,6 +17,7 @@ export function openExpensePDF(entries, year, month, userName, status) {
       var parts = [];
       if (e.travel_from || e.travel_to) parts.push((e.travel_from||'') + ' → ' + (e.travel_to||''));
       if (e.travel_method) parts.push(e.travel_method);
+      if (e.trip_type) parts.push(e.trip_type);
       return parts.join(' / ');
     }
     if (e.category === '書籍代' && e.book_title) return '書籍: ' + e.book_title;
