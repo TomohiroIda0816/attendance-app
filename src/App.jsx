@@ -10,6 +10,8 @@ import TripAdminPage from './pages/TripAdminPage';
 import ExpensePage from './pages/ExpensePage';
 import ExpenseAdminPage from './pages/ExpenseAdminPage';
 import ProfilePage from './pages/ProfilePage';
+import InternPage from './pages/InternPage';
+import InternAdminPage from './pages/InternAdminPage';
 
 export default function App() {
   var auth = useAuth();
@@ -39,6 +41,38 @@ export default function App() {
     );
   }
 
+  // インターン日報
+  if (module === 'intern') {
+    return (
+      <div className="app-container">
+        <header className="app-header">
+          <div className="header-left"><button className="btn-home" onClick={function(){setModule('home');}}>◀ ホーム</button><span className="header-logo">🎓</span><span className="header-brand">日報・勤怠</span></div>
+          <nav className="header-nav">
+            <button className="nav-btn" onClick={function(){setModule('profile');}}>👤</button>
+            <button className="nav-logout" onClick={function(){auth.signOut();}}>ログアウト</button>
+          </nav>
+        </header>
+        <main className="app-main"><InternPage /></main>
+      </div>
+    );
+  }
+
+  // インターン管理者
+  if (module === 'intern-admin') {
+    return (
+      <div className="app-container">
+        <header className="app-header">
+          <div className="header-left"><button className="btn-home" onClick={function(){setModule('home');}}>◀ ホーム</button><span className="header-logo">🎓</span><span className="header-brand">インターン日報（管理者）</span></div>
+          <nav className="header-nav">
+            <button className="nav-btn" onClick={function(){setModule('profile');}}>👤</button>
+            <button className="nav-logout" onClick={function(){auth.signOut();}}>ログアウト</button>
+          </nav>
+        </header>
+        <main className="app-main"><InternAdminPage /></main>
+      </div>
+    );
+  }
+
   // ホーム画面
   if (module === 'home') {
     return (
@@ -53,7 +87,12 @@ export default function App() {
         <main className="dashboard-main">
           <div className="dashboard-greeting"><h1 className="dashboard-title">{'こんにちは、'+(auth.profile?auth.profile.full_name:'')+'さん'}</h1><p className="dashboard-subtitle">メニューを選択してください</p></div>
           <div className="dashboard-grid">
-            <button className="dashboard-card dc-attendance" onClick={function(){setModule('attendance');setView('attendance');}}><div className="dc-icon">⏱</div><div className="dc-info"><h2 className="dc-title">勤怠管理</h2><p className="dc-desc">出退勤の記録・月次申請</p></div><span className="dc-arrow">→</span></button>
+            {auth.isIntern && (
+              <button className="dashboard-card dc-intern" onClick={function(){setModule('intern');}}><div className="dc-icon">🎓</div><div className="dc-info"><h2 className="dc-title">日報・勤怠</h2><p className="dc-desc">日報の記録・勤怠管理</p></div><span className="dc-arrow">→</span></button>
+            )}
+            {!auth.isIntern && (
+              <button className="dashboard-card dc-attendance" onClick={function(){setModule('attendance');setView('attendance');}}><div className="dc-icon">⏱</div><div className="dc-info"><h2 className="dc-title">勤怠管理</h2><p className="dc-desc">出退勤の記録・月次申請</p></div><span className="dc-arrow">→</span></button>
+            )}
             <button className="dashboard-card dc-trip" onClick={function(){setModule('trip');setTripView('trips');}}><div className="dc-icon">✈️</div><div className="dc-info"><h2 className="dc-title">出張管理</h2><p className="dc-desc">出張申請・手当計算</p></div><span className="dc-arrow">→</span></button>
             <button className="dashboard-card dc-expense" onClick={function(){setModule('expense');setExpView('expenses');}}><div className="dc-icon">💰</div><div className="dc-info"><h2 className="dc-title">経費管理</h2><p className="dc-desc">経費申請・領収書読取</p></div><span className="dc-arrow">→</span></button>
           </div>
@@ -61,6 +100,7 @@ export default function App() {
             <button className="dashboard-card dc-admin" onClick={function(){setModule('attendance');setView('admin');}}><div className="dc-icon">👥</div><div className="dc-info"><h2 className="dc-title">勤怠管理（管理者）</h2><p className="dc-desc">全ユーザーの勤怠申請確認・承認</p></div><span className="dc-arrow">→</span></button>
             <button className="dashboard-card dc-admin" onClick={function(){setModule('trip');setTripView('admin');}}><div className="dc-icon">🗂</div><div className="dc-info"><h2 className="dc-title">出張管理（管理者）</h2><p className="dc-desc">全ユーザーの出張申請確認・承認</p></div><span className="dc-arrow">→</span></button>
             <button className="dashboard-card dc-admin" onClick={function(){setModule('expense');setExpView('admin');}}><div className="dc-icon">📊</div><div className="dc-info"><h2 className="dc-title">経費管理（管理者）</h2><p className="dc-desc">全ユーザーの経費申請確認・承認</p></div><span className="dc-arrow">→</span></button>
+            <button className="dashboard-card dc-admin" onClick={function(){setModule('intern-admin');}}><div className="dc-icon">🎓</div><div className="dc-info"><h2 className="dc-title">インターン日報（管理者）</h2><p className="dc-desc">インターン生の日報・勤怠確認</p></div><span className="dc-arrow">→</span></button>
           </div></div>)}
         </main>
       </div>
