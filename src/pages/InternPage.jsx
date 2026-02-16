@@ -45,13 +45,18 @@ export default function InternPage() {
     if (!auth.user) return;
     setLoading(true);
     var startDate = year+'-'+String(month).padStart(2,'0')+'-01';
-    var endDate = year+'-'+String(month).padStart(2,'0')+'-31';
+    var lastDay = new Date(year, month, 0).getDate();
+    var endDate = year+'-'+String(month).padStart(2,'0')+'-'+String(lastDay).padStart(2,'0');
     supabase.from('intern_daily_reports').select('*')
       .eq('user_id', auth.user.id)
-      .gte('report_date', startDate).lte('report_date', endDate)
+      .gte('report_date', startDate)
+      .lte('report_date', endDate)
       .order('report_date', { ascending: false })
-      .then(function(res) { setReports(res.data || []); })
-      .catch(function() { setReports([]); })
+      .then(function(res) {
+        if (res.error) { console.error('Load error:', res.error); setReports([]); }
+        else { setReports(res.data || []); }
+      })
+      .catch(function(err) { console.error('Catch error:', err); setReports([]); })
       .finally(function() { setLoading(false); });
   }
 

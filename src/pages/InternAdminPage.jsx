@@ -19,12 +19,14 @@ export default function InternAdminPage() {
   function loadData() {
     setLoading(true); setDetail(null); setReportDetail(null);
     var startDate = year+'-'+String(month).padStart(2,'0')+'-01';
-    var endDate = year+'-'+String(month).padStart(2,'0')+'-31';
+    var lastDay = new Date(year, month, 0).getDate();
+    var endDate = year+'-'+String(month).padStart(2,'0')+'-'+String(lastDay).padStart(2,'0');
     supabase.from('profiles').select('*').eq('account_type','インターン').order('full_name')
       .then(function(profRes) {
         if (!profRes.data || profRes.data.length === 0) { setInterns([]); setLoading(false); return; }
         return supabase.from('intern_daily_reports').select('*')
-          .gte('report_date', startDate).lte('report_date', endDate)
+          .gte('report_date', startDate)
+          .lte('report_date', endDate)
           .order('report_date', { ascending: false })
           .then(function(repRes) {
             var allReports = repRes.data || [];
