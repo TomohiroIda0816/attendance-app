@@ -715,6 +715,19 @@ body {
 
 .expense-actions-row { margin-bottom: 16px; }
 .expense-btn-row { display: flex; gap: 8px; margin-top: 8px; }
+.expense-tab-btn {
+  padding: 8px 16px; border: 1px solid var(--border); border-radius: 6px;
+  background: white; font-size: 13px; font-weight: 600; cursor: pointer;
+  transition: all 0.15s;
+}
+.expense-tab-btn:hover { border-color: var(--accent); color: var(--accent); }
+.expense-tab-active { background: var(--accent); color: white; border-color: var(--accent); }
+.expense-tab-active:hover { background: var(--accent); color: white; }
+
+.transport-form-layout { display: flex; gap: 24px; }
+.transport-form-left { flex: 1; min-width: 0; }
+.transport-form-right { width: 280px; flex-shrink: 0; }
+
 .transport-no-receipt {
   margin-top: 16px; padding: 12px; background: #f0fdf4; border-radius: 8px;
   color: #166534; font-size: 13px; text-align: center;
@@ -723,11 +736,31 @@ body {
 .fav-routes-label { font-size: 12px; font-weight: 600; color: #92400e; display: block; margin-bottom: 8px; }
 .fav-routes-list { display: flex; flex-wrap: wrap; gap: 6px; }
 .fav-route-chip { display: flex; align-items: center; background: white; border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden; }
-.fav-route-btn { padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer; border: none; background: none; color: var(--text); transition: background 0.15s; }
+.fav-route-btn { padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer; border: none; background: none; color: var(--text); transition: background 0.15s; text-align: left; }
 .fav-route-btn:hover { background: #fef3c7; }
+.fav-route-info { font-weight: 400; color: var(--text-muted); font-size: 11px; }
 .fav-route-del { padding: 6px 8px; font-size: 12px; cursor: pointer; border: none; border-left: 1px solid #e5e7eb; background: none; color: #9ca3af; transition: all 0.15s; }
 .fav-route-del:hover { background: #fee2e2; color: #dc2626; }
-.fav-save-form { display: flex; gap: 8px; align-items: center; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-light); }
+.fav-save-form { display: flex; gap: 8px; align-items: center; }
+
+/* Calendar */
+.date-calendar { border: 1px solid var(--border-light); border-radius: 8px; padding: 8px; background: white; }
+.cal-header-row { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; margin-bottom: 4px; }
+.cal-dow { font-size: 11px; font-weight: 600; color: var(--text-muted); padding: 4px 0; }
+.cal-sun { color: #dc2626; }
+.cal-sat { color: #2563eb; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.cal-cell { text-align: center; padding: 6px 0; border-radius: 6px; font-size: 13px; }
+.cal-empty { }
+.cal-day { cursor: pointer; transition: all 0.12s; font-weight: 500; }
+.cal-day:hover { background: #e0e7ff; }
+.cal-selected { background: var(--accent) !important; color: white !important; font-weight: 700; }
+.cal-selected-info { margin-top: 8px; font-size: 12px; font-weight: 600; color: var(--accent); text-align: center; }
+
+@media (max-width: 768px) {
+  .transport-form-layout { flex-direction: column; }
+  .transport-form-right { width: 100%; }
+}
 
 .receipt-attached {
   display: block; margin-top: 8px; font-size: 12px; color: var(--success); font-weight: 600;

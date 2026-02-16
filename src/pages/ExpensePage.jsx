@@ -6,6 +6,7 @@ import { openExpensePDF } from '../lib/expensePdf';
 var CATEGORIES = ['旅費交通費', '書籍代', 'その他'];
 var METHODS = ['電車', 'バス', 'タクシー', '飛行機', '新幹線', 'その他'];
 var TRANSPORT_METHODS = ['電車', 'バス'];
+var DOW = ['日','月','火','水','木','金','土'];
 
 function fmtDate(d) {
   if (!d) return '';
@@ -29,7 +30,6 @@ function getDetail(e) {
   if (e.category==='書籍代'&&e.book_title) return e.book_title;
   return e.description;
 }
-
 function fileToBase64(file) {
   return new Promise(function(resolve, reject) {
     var r = new FileReader();
@@ -38,7 +38,6 @@ function fileToBase64(file) {
     r.readAsDataURL(file);
   });
 }
-
 function analyzeOneReceipt(base64, mediaType, apiKey) {
   var contentBlock;
   if (mediaType === 'application/pdf') {
@@ -61,6 +60,37 @@ function analyzeOneReceipt(base64, mediaType, apiKey) {
     if (data.content) { for (var i=0;i<data.content.length;i++) { if(data.content[i].type==='text') text+=data.content[i].text; } }
     return JSON.parse(text.replace(/```json|```/g,'').trim());
   });
+}
+
+// カレンダーコンポーネント
+function DateCalendar(props) {
+  var yr = props.year, mo = props.month, selected = props.selected, onToggle = props.onToggle;
+  var firstDay = new Date(yr, mo - 1, 1).getDay();
+  var daysInMonth = new Date(yr, mo, 0).getDate();
+  var cells = [];
+  for (var i = 0; i < firstDay; i++) cells.push(null);
+  for (var d = 1; d <= daysInMonth; d++) cells.push(d);
+
+  var selSet = {};
+  selected.forEach(function(s) { selSet[s] = true; });
+
+  return (
+    <div className="date-calendar">
+      <div className="cal-header-row">
+        {DOW.map(function(d, i) { return <div key={i} className={'cal-dow' + (i===0?' cal-sun':'') + (i===6?' cal-sat':'')}>{d}</div>; })}
+      </div>
+      <div className="cal-grid">
+        {cells.map(function(day, i) {
+          if (day === null) return <div key={'e'+i} className="cal-cell cal-empty"></div>;
+          var dateStr = yr + '-' + String(mo).padStart(2,'0') + '-' + String(day).padStart(2,'0');
+          var isSelected = !!selSet[dateStr];
+          var dow = new Date(yr, mo-1, day).getDay();
+          var cls = 'cal-cell cal-day' + (isSelected ? ' cal-selected' : '') + (dow===0?' cal-sun':'') + (dow===6?' cal-sat':'');
+          return <div key={day} className={cls} onClick={function(){onToggle(dateStr);}}>{day}</div>;
+        })}
+      </div>
+    </div>
+  );
 }
 
 export default function ExpensePage() {
@@ -88,13 +118,14 @@ export default function ExpensePage() {
   var _receiptName = useState(''), receiptName = _receiptName[0], setReceiptName = _receiptName[1];
   // 交通費フォーム
   var _showTransport = useState(false), showTransport = _showTransport[0], setShowTransport = _showTransport[1];
-  var _tDate = useState(''), tDate = _tDate[0], setTDate = _tDate[1];
   var _tMeth = useState('電車'), tMeth = _tMeth[0], setTMeth = _tMeth[1];
   var _tF = useState(''), tF = _tF[0], setTF = _tF[1];
   var _tT = useState(''), tT = _tT[0], setTT = _tT[1];
   var _tTy = useState('片道'), tTy = _tTy[0], setTTy = _tTy[1];
   var _tAm = useState(''), tAm = _tAm[0], setTAm = _tAm[1];
   var _tEditId = useState(null), tEditId = _tEditId[0], setTEditId = _tEditId[1];
+  var _tEditDate = useState(''), tEditDate = _tEditDate[0], setTEditDate = _tEditDate[1];
+  var _selDates = useState([]), selDates = _selDates[0], setSelDates = _selDates[1];
   // お気に入り
   var _favs = useState([]), favs = _favs[0], setFavs = _favs[1];
   var _showFavForm = useState(false), showFavForm = _showFavForm[0], setShowFavForm = _showFavForm[1];
@@ -143,7 +174,16 @@ export default function ExpensePage() {
 
   useEffect(function() { loadData(); loadFavs(); }, [auth.user, year, month]);
 
-  // ---- 領収書系経費フォーム ----
+  function toggleDate(dateStr) {
+    var idx = selDates.indexOf(dateStr);
+    if (idx >= 0) {
+      var copy = selDates.slice(); copy.splice(idx, 1); setSelDates(copy);
+    } else {
+      setSelDates(selDates.concat([dateStr]));
+    }
+  }
+
+  // ---- 領収書系 ----
   function resetForm() {
     setExpDate(''); setCat('その他'); setAmt(''); setDesc('');
     setTFrom(''); setTTo(''); setTMethod(''); setBookTitle(''); setTripType('片道');
@@ -172,7 +212,7 @@ export default function ExpensePage() {
           if (result.date) setExpDate(result.date);
           flash('読み取り完了');
         })
-        .catch(function() { flash('自動読み取りに失敗。手動で入力してください。'); })
+        .catch(function() { flash('自動読み取りに失敗'); })
         .finally(function() { setUploading(false); setUploadProgress(''); });
     });
   }
@@ -181,7 +221,7 @@ export default function ExpensePage() {
     var files = Array.from(e.target.files);
     if (!files.length) return;
     var apiKey = getApiKey();
-    if (!apiKey) { flash('APIキー未設定です。管理者にAPI設定を依頼してください。'); return; }
+    if (!apiKey) { flash('APIキー未設定です'); return; }
     if (!reportId) return;
     setUploading(true);
     var total = files.length, succeeded = 0;
@@ -190,11 +230,10 @@ export default function ExpensePage() {
       if (idx >= files.length) {
         setUploading(false); setUploadProgress('');
         if (batchRef.current) batchRef.current.value = '';
-        flash(succeeded+'件の経費を登録しました');
-        loadData(); return;
+        flash(succeeded+'件登録'); loadData(); return;
       }
       var file = files[idx];
-      setUploadProgress((idx+1)+' / '+total+' 処理中... ('+file.name+')');
+      setUploadProgress((idx+1)+' / '+total+' ('+file.name+')');
       fileToBase64(file).then(function(b64) {
         return analyzeOneReceipt(b64, file.type||'image/png', apiKey).then(function(result) {
           return supabase.from('expense_entries').insert({
@@ -211,7 +250,7 @@ export default function ExpensePage() {
         return fileToBase64(file).then(function(b64) {
           return supabase.from('expense_entries').insert({
             report_id: reportId, expense_date: year+'-'+String(month).padStart(2,'0')+'-01',
-            category: 'その他', amount: 0, description: file.name+'（自動読み取り失敗）',
+            category: 'その他', amount: 0, description: file.name+'（読取失敗）',
             receipt_data: b64, receipt_filename: file.name,
           });
         }).then(function() { succeeded++; }).catch(function(){});
@@ -232,30 +271,50 @@ export default function ExpensePage() {
     };
     var p = editId ? supabase.from('expense_entries').update(data).eq('id', editId)
       : supabase.from('expense_entries').insert(data);
-    p.then(function() { flash(editId ? '更新しました' : '登録しました'); resetForm(); loadData(); })
-      .catch(function() { flash('保存に失敗しました'); })
+    p.then(function() { flash(editId?'更新':'登録'); resetForm(); loadData(); })
+      .catch(function() { flash('保存失敗'); })
       .finally(function() { setSaving(false); });
   }
 
-  // ---- 交通費フォーム ----
+  // ---- 交通費 ----
   function resetTransport() {
-    setTDate(''); setTMeth('電車'); setTF(''); setTT(''); setTTy('片道'); setTAm('');
-    setTEditId(null); setShowTransport(false);
+    setTMeth('電車'); setTF(''); setTT(''); setTTy('片道'); setTAm('');
+    setTEditId(null); setTEditDate(''); setSelDates([]); setShowTransport(false);
+    setShowFavForm(false); setFavName('');
   }
 
   function handleSaveTransport() {
-    if (!tDate || !tAm || !tF || !tT) { flash('利用日・区間・金額は必須です'); return; }
+    if (!tF || !tT || !tAm) { flash('区間・金額は必須です'); return; }
+    // 編集モード
+    if (tEditId) {
+      if (!tEditDate) { flash('日付が必要です'); return; }
+      setSaving(true);
+      supabase.from('expense_entries').update({
+        expense_date: tEditDate, category: '旅費交通費',
+        amount: Math.round(Number(tAm)) || 0,
+        travel_from: tF, travel_to: tT, travel_method: tMeth,
+        trip_type: tTy, receipt_data: '', receipt_filename: '',
+      }).eq('id', tEditId)
+        .then(function() { flash('更新しました'); resetTransport(); loadData(); })
+        .catch(function() { flash('更新失敗'); })
+        .finally(function() { setSaving(false); });
+      return;
+    }
+    // 新規 — 複数日付一括
+    if (selDates.length === 0) { flash('カレンダーから日付を選択してください'); return; }
     setSaving(true);
-    var data = {
-      report_id: reportId, expense_date: tDate, category: '旅費交通費',
-      amount: Math.round(Number(tAm)) || 0, description: '',
-      travel_from: tF, travel_to: tT, travel_method: tMeth,
-      trip_type: tTy, receipt_data: '', receipt_filename: '',
-    };
-    var p = tEditId ? supabase.from('expense_entries').update(data).eq('id', tEditId)
-      : supabase.from('expense_entries').insert(data);
-    p.then(function() { flash(tEditId ? '更新しました' : '交通費を登録しました'); resetTransport(); loadData(); })
-      .catch(function() { flash('保存に失敗しました'); })
+    var sorted = selDates.slice().sort();
+    var inserts = sorted.map(function(d) {
+      return {
+        report_id: reportId, expense_date: d, category: '旅費交通費',
+        amount: Math.round(Number(tAm)) || 0, description: '',
+        travel_from: tF, travel_to: tT, travel_method: tMeth,
+        trip_type: tTy, receipt_data: '', receipt_filename: '',
+      };
+    });
+    supabase.from('expense_entries').insert(inserts)
+      .then(function() { flash(sorted.length+'件の交通費を登録しました'); resetTransport(); loadData(); })
+      .catch(function() { flash('登録失敗'); })
       .finally(function() { setSaving(false); });
   }
 
@@ -263,32 +322,32 @@ export default function ExpensePage() {
     setTF(fav.travel_from); setTT(fav.travel_to);
     setTMeth(fav.travel_method); setTAm(String(fav.amount));
     setTTy(fav.trip_type);
-    flash('「'+fav.route_name+'」を適用しました');
+    flash('「'+fav.route_name+'」を適用');
   }
 
   function handleSaveFav() {
-    if (!favName.trim() || !tF || !tT || !tAm) { flash('ルート名・区間・金額を入力してください'); return; }
+    if (!favName.trim() || !tF || !tT || !tAm) { flash('ルート名・区間・金額を入力'); return; }
     supabase.from('favorite_routes').insert({
       user_id: auth.user.id, route_name: favName.trim(),
       travel_from: tF, travel_to: tT, travel_method: tMeth,
       amount: Math.round(Number(tAm)) || 0, trip_type: tTy,
-    }).then(function() { flash('お気に入りに登録しました'); setShowFavForm(false); setFavName(''); loadFavs(); })
-      .catch(function() { flash('登録に失敗しました'); });
+    }).then(function() { flash('お気に入りに登録'); setShowFavForm(false); setFavName(''); loadFavs(); })
+      .catch(function() { flash('登録失敗'); });
   }
 
   function deleteFav(id) {
-    if (!confirm('このお気に入りルートを削除しますか？')) return;
+    if (!confirm('このルートを削除しますか？')) return;
     supabase.from('favorite_routes').delete().eq('id', id)
-      .then(function() { flash('削除しました'); loadFavs(); })
-      .catch(function() { flash('削除に失敗しました'); });
+      .then(function() { flash('削除'); loadFavs(); });
   }
 
   // ---- 共通 ----
   function handleEdit(e) {
     if (e.category === '旅費交通費' && !e.receipt_data && TRANSPORT_METHODS.indexOf(e.travel_method) >= 0) {
-      setTDate(e.expense_date); setTMeth(e.travel_method); setTF(e.travel_from||'');
+      setTMeth(e.travel_method); setTF(e.travel_from||'');
       setTT(e.travel_to||''); setTTy(e.trip_type||'片道'); setTAm(String(e.amount));
-      setTEditId(e.id); setShowTransport(true); setShowForm(false);
+      setTEditId(e.id); setTEditDate(e.expense_date); setSelDates([]);
+      setShowTransport(true); setShowForm(false);
     } else {
       setExpDate(e.expense_date); setCat(e.category); setAmt(String(e.amount));
       setDesc(e.description); setTFrom(e.travel_from||''); setTTo(e.travel_to||'');
@@ -301,18 +360,16 @@ export default function ExpensePage() {
   }
 
   function handleDeleteEntry(id) {
-    if (!confirm('この経費を削除しますか？')) return;
+    if (!confirm('削除しますか？')) return;
     supabase.from('expense_entries').delete().eq('id', id)
-      .then(function() { flash('削除しました'); setDetailEntry(null); loadData(); })
-      .catch(function() { flash('削除に失敗しました'); });
+      .then(function() { flash('削除'); setDetailEntry(null); loadData(); });
   }
 
   function handleSubmit() {
     if (!reportId) return; setSaving(true);
     supabase.from('expense_monthly_reports')
       .update({ status: '申請済', submitted_at: new Date().toISOString() }).eq('id', reportId)
-      .then(function() { setStatus('申請済'); flash(year+'年'+month+'月 申請しました'); })
-      .catch(function() { flash('申請に失敗しました'); })
+      .then(function() { setStatus('申請済'); flash('申請しました'); })
       .finally(function() { setSaving(false); });
   }
 
@@ -320,8 +377,7 @@ export default function ExpensePage() {
     if (!reportId) return; setSaving(true);
     supabase.from('expense_monthly_reports')
       .update({ status: '下書き', submitted_at: null }).eq('id', reportId)
-      .then(function() { setStatus('下書き'); flash('申請を取り消しました'); })
-      .catch(function() { flash('取り消しに失敗しました'); })
+      .then(function() { setStatus('下書き'); flash('取り消しました'); })
       .finally(function() { setSaving(false); });
   }
 
@@ -349,11 +405,11 @@ export default function ExpensePage() {
             <div className="trip-detail-item"><span className="trip-detail-label">日付</span><span className="trip-detail-value">{fmtDate(de.expense_date)}</span></div>
             <div className="trip-detail-item"><span className="trip-detail-label">費目</span><span className="trip-detail-value"><span className={'expense-cat expense-cat-'+de.category}>{de.category}</span></span></div>
             <div className="trip-detail-item"><span className="trip-detail-label">金額</span><span className="trip-detail-value">¥{de.amount.toLocaleString()}</span></div>
-            <div className="trip-detail-item"><span className="trip-detail-label">内容</span><span className="trip-detail-value">{getDetail(de)}</span></div>
             {de.category==='旅費交通費'&&de.travel_from&&(<div className="trip-detail-item"><span className="trip-detail-label">区間</span><span className="trip-detail-value">{de.travel_from} → {de.travel_to}</span></div>)}
             {de.category==='旅費交通費'&&de.travel_method&&(<div className="trip-detail-item"><span className="trip-detail-label">交通手段</span><span className="trip-detail-value">{de.travel_method}</span></div>)}
             {de.category==='旅費交通費'&&de.trip_type&&(<div className="trip-detail-item"><span className="trip-detail-label">片道/往復</span><span className="trip-detail-value">{de.trip_type}</span></div>)}
             {de.category==='書籍代'&&de.book_title&&(<div className="trip-detail-item"><span className="trip-detail-label">書籍名</span><span className="trip-detail-value">{de.book_title}</span></div>)}
+            {de.category!=='旅費交通費'&&de.description&&(<div className="trip-detail-item"><span className="trip-detail-label">内容</span><span className="trip-detail-value">{de.description}</span></div>)}
           </div>
           {de.receipt_data && (
             <div className="receipt-preview-section">
@@ -402,7 +458,6 @@ export default function ExpensePage() {
         </div>
       </div>
 
-      {/* ボタン群 */}
       {isEditable && (
         <div className="expense-actions-row">
           <div className="batch-upload-card">
@@ -413,11 +468,11 @@ export default function ExpensePage() {
             <span className="receipt-hint">{getApiKey() ? '複数の領収書を選択 → 自動で個別の経費に登録' : 'API未設定のため自動読み取り不可'}</span>
           </div>
           <div className="expense-btn-row">
-            <button className="btn-outline" onClick={function(){resetForm();resetTransport();setShowTransport(!showTransport);setShowForm(false);}}>
-              {showTransport ? '✕ 閉じる' : '🚃 交通費を追加'}
+            <button className={'expense-tab-btn'+(showTransport?' expense-tab-active':'')} onClick={function(){resetForm();if(!showTransport){setSelDates([]);}setShowTransport(!showTransport);setShowForm(false);}}>
+              🚃 交通費を追加
             </button>
-            <button className="btn-outline" onClick={function(){resetForm();resetTransport();setShowForm(!showForm);setShowTransport(false);}}>
-              {showForm ? '✕ 閉じる' : '✏️ その他経費を追加'}
+            <button className={'expense-tab-btn'+(showForm?' expense-tab-active':'')} onClick={function(){resetTransport();setShowForm(!showForm);setShowTransport(false);}}>
+              ✏️ その他経費を追加
             </button>
           </div>
         </div>
@@ -427,6 +482,7 @@ export default function ExpensePage() {
       {showTransport && isEditable && (
         <div className="card" style={{marginBottom:'16px'}}>
           <h3 className="card-title">{tEditId ? '交通費を編集' : '🚃 交通費を追加（領収書不要）'}</h3>
+
           {/* お気に入りルート */}
           {favs.length > 0 && (
             <div className="fav-routes">
@@ -436,7 +492,7 @@ export default function ExpensePage() {
                   return (
                     <div key={f.id} className="fav-route-chip">
                       <button className="fav-route-btn" onClick={function(){applyFav(f);}}>
-                        {f.route_name}
+                        {f.route_name}<span className="fav-route-info"> ({f.travel_from}→{f.travel_to} ¥{f.amount.toLocaleString()})</span>
                       </button>
                       <button className="fav-route-del" onClick={function(){deleteFav(f.id);}}>×</button>
                     </div>
@@ -445,39 +501,71 @@ export default function ExpensePage() {
               </div>
             </div>
           )}
-          <div className="expense-form-grid">
-            <div className="form-group"><label className="form-label">利用日</label><input className="form-input" type="date" value={tDate} onChange={function(e){setTDate(e.target.value);}} /></div>
-            <div className="form-group"><label className="form-label">交通手段</label>
-              <select className="form-select" value={tMeth} onChange={function(e){setTMeth(e.target.value);}}>
-                {TRANSPORT_METHODS.map(function(m){return <option key={m} value={m}>{m}</option>;})}
-              </select>
+
+          <div className="transport-form-layout">
+            {/* 左: ルート情報 */}
+            <div className="transport-form-left">
+              <div className="expense-form-grid" style={{gridTemplateColumns:'1fr 1fr'}}>
+                <div className="form-group"><label className="form-label">交通手段</label>
+                  <select className="form-select" value={tMeth} onChange={function(e){setTMeth(e.target.value);}}>
+                    {TRANSPORT_METHODS.map(function(m){return <option key={m} value={m}>{m}</option>;})}
+                  </select>
+                </div>
+                <div className="form-group"><label className="form-label">片道/往復</label>
+                  <select className="form-select" value={tTy} onChange={function(e){setTTy(e.target.value);}}>
+                    <option value="片道">片道</option><option value="往復">往復</option>
+                  </select>
+                </div>
+              </div>
+              <div className="expense-form-grid" style={{marginTop:'8px',gridTemplateColumns:'1fr 1fr 1fr'}}>
+                <div className="form-group"><label className="form-label">出発地</label><input className="form-input" value={tF} onChange={function(e){setTF(e.target.value);}} placeholder="例: 宇都宮駅" /></div>
+                <div className="form-group"><label className="form-label">到着地</label><input className="form-input" value={tT} onChange={function(e){setTT(e.target.value);}} placeholder="例: 東京駅" /></div>
+                <div className="form-group"><label className="form-label">金額（円）</label><input className="form-input" type="number" value={tAm} onChange={function(e){setTAm(e.target.value);}} placeholder="0" /></div>
+              </div>
+              {/* お気に入り登録 */}
+              {!tEditId && tF && tT && tAm && (
+                <div style={{marginTop:'12px'}}>
+                  {!showFavForm ? (
+                    <button className="btn-outline" style={{fontSize:'12px'}} onClick={function(){setShowFavForm(true);}}>⭐ このルートをお気に入りに登録</button>
+                  ) : (
+                    <div className="fav-save-form">
+                      <input className="form-input" value={favName} onChange={function(e){setFavName(e.target.value);}} placeholder="ルート名（例: 自宅→本社）" style={{maxWidth:'250px'}} />
+                      <button className="btn-primary" style={{width:'auto',padding:'8px 16px'}} onClick={handleSaveFav}>保存</button>
+                      <button className="btn-outline" onClick={function(){setShowFavForm(false);}}>✕</button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-            <div className="form-group"><label className="form-label">片道/往復</label>
-              <select className="form-select" value={tTy} onChange={function(e){setTTy(e.target.value);}}>
-                <option value="片道">片道</option><option value="往復">往復</option>
-              </select>
+
+            {/* 右: カレンダー */}
+            <div className="transport-form-right">
+              {tEditId ? (
+                <div>
+                  <label className="form-label">利用日</label>
+                  <input className="form-input" type="date" value={tEditDate} onChange={function(e){setTEditDate(e.target.value);}} />
+                </div>
+              ) : (
+                <div>
+                  <label className="form-label">利用日を選択（複数可）</label>
+                  <DateCalendar year={year} month={month} selected={selDates} onToggle={toggleDate} />
+                  {selDates.length > 0 && (
+                    <div className="cal-selected-info">
+                      {selDates.length}日選択中
+                      {tAm && <span> — 合計 ¥{(selDates.length * (Math.round(Number(tAm))||0)).toLocaleString()}</span>}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
-          <div className="expense-form-grid" style={{marginTop:'8px'}}>
-            <div className="form-group"><label className="form-label">出発地</label><input className="form-input" value={tF} onChange={function(e){setTF(e.target.value);}} placeholder="例: 宇都宮駅" /></div>
-            <div className="form-group"><label className="form-label">到着地</label><input className="form-input" value={tT} onChange={function(e){setTT(e.target.value);}} placeholder="例: 東京駅" /></div>
-            <div className="form-group"><label className="form-label">金額（円）</label><input className="form-input" type="number" value={tAm} onChange={function(e){setTAm(e.target.value);}} placeholder="0" /></div>
-          </div>
-          <div style={{display:'flex',gap:'8px',marginTop:'16px',flexWrap:'wrap'}}>
-            <button className="btn-primary" style={{width:'auto',padding:'10px 24px'}} onClick={handleSaveTransport} disabled={saving}>{saving?'保存中...':tEditId?'更新':'登録'}</button>
+
+          <div style={{display:'flex',gap:'8px',marginTop:'16px'}}>
+            <button className="btn-primary" style={{width:'auto',padding:'10px 24px'}} onClick={handleSaveTransport} disabled={saving}>
+              {saving ? '保存中...' : tEditId ? '更新' : selDates.length+'日分を登録'}
+            </button>
             <button className="btn-outline" onClick={resetTransport}>キャンセル</button>
-            {!tEditId && tF && tT && tAm && (
-              <button className="btn-outline" style={{marginLeft:'auto'}} onClick={function(){setShowFavForm(!showFavForm);}}>
-                {showFavForm ? '✕' : '⭐ お気に入りに登録'}
-              </button>
-            )}
           </div>
-          {showFavForm && (
-            <div className="fav-save-form">
-              <input className="form-input" value={favName} onChange={function(e){setFavName(e.target.value);}} placeholder="ルート名（例: 自宅→本社）" style={{maxWidth:'250px'}} />
-              <button className="btn-primary" style={{width:'auto',padding:'8px 16px'}} onClick={handleSaveFav}>保存</button>
-            </div>
-          )}
         </div>
       )}
 
@@ -490,7 +578,7 @@ export default function ExpensePage() {
               {uploading ? '🔄 読み取り中...' : '📎 領収書を添付（任意）'}
               <input ref={fileRef} type="file" accept="image/*,.pdf" onChange={handleSingleFile} disabled={uploading} style={{display:'none'}} />
             </label>
-            {receiptName && <span className="receipt-attached">✅ {receiptName} を添付済み</span>}
+            {receiptName && <span className="receipt-attached">✅ {receiptName}</span>}
           </div>
           <div className="expense-form-grid">
             <div className="form-group"><label className="form-label">日付</label><input className="form-input" type="date" value={expDate} onChange={function(e){setExpDate(e.target.value);}} /></div>
