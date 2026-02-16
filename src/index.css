@@ -496,6 +496,101 @@ body {
   opacity: 0.7;
 }
 
+/* ── Dashboard ──────────────────────────────────────────────── */
+.dashboard-main {
+  padding: 32px 24px;
+  max-width: 800px; margin: 0 auto;
+}
+.dashboard-greeting {
+  text-align: center; margin-bottom: 36px;
+  animation: slideUp 0.4s ease;
+}
+.dashboard-title {
+  font-size: 24px; font-weight: 800; color: var(--text);
+  margin-bottom: 6px;
+}
+.dashboard-subtitle {
+  font-size: 14px; color: var(--text-muted);
+}
+.dashboard-grid {
+  display: flex; flex-direction: column; gap: 12px;
+}
+.dashboard-card {
+  display: flex; align-items: center; gap: 16px;
+  padding: 20px 24px;
+  background: var(--surface);
+  border: 1.5px solid var(--border-light);
+  border-radius: 10px;
+  cursor: pointer; text-align: left;
+  font-family: var(--font);
+  transition: all 0.2s ease;
+  box-shadow: var(--shadow-sm);
+  animation: slideUp 0.4s ease;
+}
+.dashboard-card:hover {
+  border-color: var(--accent);
+  box-shadow: var(--shadow);
+  transform: translateY(-2px);
+}
+.dc-attendance:hover { border-color: #2d5a27; }
+.dc-trip:hover { border-color: #2b5797; }
+.dc-expense:hover { border-color: #8a6914; }
+.dc-admin:hover { border-color: #6b3fa0; }
+.dc-icon {
+  font-size: 32px; width: 56px; height: 56px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg); border-radius: 12px;
+  flex-shrink: 0;
+}
+.dc-info { flex: 1; }
+.dc-title {
+  font-size: 17px; font-weight: 700; color: var(--text);
+  margin-bottom: 2px;
+}
+.dc-desc {
+  font-size: 13px; color: var(--text-secondary);
+}
+.dc-arrow {
+  font-size: 18px; color: var(--text-muted);
+  flex-shrink: 0; transition: transform 0.2s;
+}
+.dashboard-card:hover .dc-arrow { transform: translateX(4px); }
+.dashboard-admin-section {
+  margin-top: 32px; padding-top: 24px;
+  border-top: 1px solid var(--border-light);
+}
+.dashboard-admin-label {
+  font-size: 12px; font-weight: 600; color: var(--text-muted);
+  letter-spacing: 1px; text-transform: uppercase;
+  margin-bottom: 12px;
+}
+
+/* ── Home Button ───────────────────────────────────────────── */
+.btn-home {
+  padding: 5px 12px; background: none;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  font-size: 12px; color: var(--text-secondary);
+  cursor: pointer; font-family: var(--font);
+  font-weight: 500; margin-right: 4px;
+  transition: all var(--transition);
+}
+.btn-home:hover { background: var(--bg); border-color: var(--text-muted); }
+
+/* ── Coming Soon ───────────────────────────────────────────── */
+.coming-soon {
+  text-align: center; padding: 80px 20px;
+  animation: slideUp 0.4s ease;
+}
+.coming-soon-icon { font-size: 56px; margin-bottom: 16px; }
+.coming-soon-title {
+  font-size: 22px; font-weight: 700; color: var(--text);
+  margin-bottom: 8px;
+}
+.coming-soon-desc {
+  font-size: 14px; color: var(--text-secondary);
+  margin-bottom: 24px;
+}
+
 /* ── Admin Table ────────────────────────────────────────────── */
 .admin-table {
   width: 100%; border-collapse: collapse; font-size: 14px;
@@ -535,6 +630,53 @@ body {
   border-color: #d0a0a0; color: var(--danger); background: var(--danger-light);
 }
 .btn-small-reject:hover { background: #f5d0cd; }
+
+/* ── Trip Page ──────────────────────────────────────────────── */
+.trip-form-grid {
+  display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 8px;
+}
+.trip-preview {
+  background: var(--accent-light); border-radius: var(--radius);
+  padding: 10px 16px; margin-top: 12px;
+}
+.trip-preview-row {
+  display: flex; gap: 20px; align-items: center;
+  font-size: 14px; color: var(--text-secondary); flex-wrap: wrap;
+}
+.trip-preview-total { font-weight: 700; color: var(--accent); font-size: 15px; }
+.trip-detail-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 16px; margin-bottom: 24px;
+}
+.trip-detail-item { display: flex; flex-direction: column; gap: 2px; }
+.trip-detail-label { font-size: 11px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.5px; }
+.trip-detail-value { font-size: 16px; font-weight: 600; color: var(--text); }
+.trip-breakdown { margin-bottom: 24px; }
+.trip-breakdown-title { font-size: 14px; font-weight: 700; margin-bottom: 10px; color: var(--text); }
+.trip-calc-table {
+  width: 100%; max-width: 480px; border-collapse: collapse; font-size: 14px;
+}
+.trip-calc-table th {
+  padding: 8px 12px; background: var(--bg); font-weight: 600; font-size: 12px;
+  color: var(--text-secondary); text-align: left; border-bottom: 1px solid var(--border);
+}
+.trip-calc-table td {
+  padding: 8px 12px; border-bottom: 1px solid var(--border-light);
+}
+.trip-calc-amount { text-align: right; font-family: var(--mono); font-weight: 600; }
+.trip-calc-total td {
+  font-weight: 700; font-size: 15px;
+  border-top: 2px solid var(--text); padding-top: 10px;
+}
+.trip-detail-actions {
+  display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+  padding-top: 16px; border-top: 1px solid var(--border-light);
+}
+
+@media (max-width: 768px) {
+  .trip-form-grid { grid-template-columns: 1fr; }
+  .trip-detail-grid { grid-template-columns: 1fr 1fr; }
+}
 
 /* ── Responsive ────────────────────────────────────────────── */
 @media (max-width: 768px) {
