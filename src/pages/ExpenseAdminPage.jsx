@@ -86,42 +86,37 @@ export default function ExpenseAdminPage() {
       <div className="expense-page">
         <div className="month-header">
           <button className="btn-ghost" onClick={function(){setReceiptView(null);}}>← 戻る</button>
-          <h2 className="month-title">領収書</h2>
+          <h2 className="month-title">経費詳細・領収書</h2>
         </div>
         <div className="card">
           <div className="trip-detail-grid">
             <div className="trip-detail-item"><span className="trip-detail-label">日付</span><span className="trip-detail-value">{fmtDate(receiptView.expense_date)}</span></div>
-            <div className="trip-detail-item"><span className="trip-detail-label">費目</span><span className="trip-detail-value">{receiptView.category}</span></div>
+            <div className="trip-detail-item"><span className="trip-detail-label">費目</span><span className="trip-detail-value"><span className={'expense-cat expense-cat-'+receiptView.category}>{receiptView.category}</span></span></div>
             <div className="trip-detail-item"><span className="trip-detail-label">金額</span><span className="trip-detail-value">¥{receiptView.amount.toLocaleString()}</span></div>
             <div className="trip-detail-item"><span className="trip-detail-label">内容</span><span className="trip-detail-value">{getDetail(receiptView)}</span></div>
+            {receiptView.category==='旅費交通費'&&receiptView.travel_from&&(<div className="trip-detail-item"><span className="trip-detail-label">区間</span><span className="trip-detail-value">{receiptView.travel_from} → {receiptView.travel_to}</span></div>)}
+            {receiptView.category==='旅費交通費'&&receiptView.travel_method&&(<div className="trip-detail-item"><span className="trip-detail-label">交通手段</span><span className="trip-detail-value">{receiptView.travel_method}</span></div>)}
+            {receiptView.category==='書籍代'&&receiptView.book_title&&(<div className="trip-detail-item"><span className="trip-detail-label">書籍名</span><span className="trip-detail-value">{receiptView.book_title}</span></div>)}
           </div>
           {receiptView.receipt_data && (
             <div className="receipt-preview-section">
               <h3 className="trip-breakdown-title">領収書画像</h3>
               <div className="receipt-preview-box">
                 {receiptView.receipt_filename && receiptView.receipt_filename.toLowerCase().endsWith('.pdf') ? (
-                  <div className="receipt-pdf-notice">
-                    <span>📄 {receiptView.receipt_filename}</span>
-                    <button className="btn-small" onClick={function(){
-                      var bin = atob(receiptView.receipt_data);
-                      var arr = new Uint8Array(bin.length);
-                      for(var i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
-                      var blob = new Blob([arr],{type:'application/pdf'});
-                      window.open(URL.createObjectURL(blob),'_blank');
-                    }}>PDFを開く</button>
+                  <div className="receipt-pdf-notice"><span>📄 {receiptView.receipt_filename}</span>
+                    <button className="btn-small" onClick={function(){var b=atob(receiptView.receipt_data);var a=new Uint8Array(b.length);for(var i=0;i<b.length;i++)a[i]=b.charCodeAt(i);window.open(URL.createObjectURL(new Blob([a],{type:'application/pdf'})),'_blank');}}>PDFを開く</button>
                   </div>
-                ) : (
-                  <img src={'data:image/png;base64,'+receiptView.receipt_data} alt="領収書" className="receipt-image" />
-                )}
+                ) : (<img src={'data:image/png;base64,'+receiptView.receipt_data} alt="領収書" className="receipt-image" />)}
               </div>
             </div>
           )}
+          {!receiptView.receipt_data && (<div className="card" style={{marginTop:'16px'}}><p className="empty-state">領収書は添付されていません。</p></div>)}
         </div>
       </div>
     );
   }
 
-  // ユーザー詳細ビュー
+  // ユーザー詳細
   if (detail) {
     var u = detail.user, rpt = detail.report, ent = detail.entries;
     var grandTotal = 0;
@@ -160,7 +155,7 @@ export default function ExpenseAdminPage() {
               <tbody>
                 {ent.map(function(e){
                   return (
-                    <tr key={e.id} className="admin-table-row" style={{cursor: e.receipt_data ? 'pointer' : 'default'}} onClick={function(){if(e.receipt_data)setReceiptView(e);}}>
+                    <tr key={e.id} className="admin-table-row" style={{cursor:'pointer'}} onClick={function(){setReceiptView(e);}}>
                       <td style={{textAlign:'center'}}>{fmtDate(e.expense_date)}</td>
                       <td style={{textAlign:'center'}}><span className={'expense-cat expense-cat-'+e.category}>{e.category}</span></td>
                       <td style={{textAlign:'left'}}>{getDetail(e)}</td>
@@ -201,18 +196,16 @@ export default function ExpenseAdminPage() {
           </span>
         </div>
       </div>
-
       {showKeyInput && (
         <div className="card" style={{marginBottom:'12px'}}>
           <h3 className="card-title">Anthropic APIキー設定</h3>
-          <p className="card-desc">領収書の自動読み取りに使用するAPIキーです。全ユーザー共通でこのブラウザに保存されます。</p>
+          <p className="card-desc">領収書の自動読み取りに使用するAPIキーです。このブラウザに保存され、全ユーザーの読み取りに使用されます。</p>
           <div style={{display:'flex',gap:'8px',alignItems:'center'}}>
             <input className="form-input" type="password" value={apiKey} onChange={function(e){setApiKey(e.target.value);}} placeholder="sk-ant-..." style={{maxWidth:'400px'}} />
             <button className="btn-primary" style={{width:'auto',padding:'8px 16px'}} onClick={saveApiKey}>保存</button>
           </div>
         </div>
       )}
-
       {loading ? (<div className="page-loading"><div className="spinner"></div><span>読み込み中...</span></div>) : (
         <div className="card" style={{padding:'0',overflow:'hidden'}}>
           <table className="admin-table">
