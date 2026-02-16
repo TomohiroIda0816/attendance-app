@@ -309,7 +309,13 @@ export default function ExpensePage() {
                 {de.receipt_filename && de.receipt_filename.toLowerCase().endsWith('.pdf') ? (
                   <div className="receipt-pdf-notice">
                     <span>📄 {de.receipt_filename}</span>
-                    <a href={'data:application/pdf;base64,'+de.receipt_data} target="_blank" rel="noopener" className="btn-small">PDFを開く</a>
+                    <button className="btn-small" onClick={function(){
+                      var bin = atob(de.receipt_data);
+                      var arr = new Uint8Array(bin.length);
+                      for(var i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
+                      var blob = new Blob([arr],{type:'application/pdf'});
+                      window.open(URL.createObjectURL(blob),'_blank');
+                    }}>PDFを開く</button>
                   </div>
                 ) : (
                   <img src={'data:image/png;base64,'+de.receipt_data} alt="領収書" className="receipt-image" />
