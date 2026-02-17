@@ -33,8 +33,16 @@ export default function ExpenseAdminPage() {
   var _receipt = useState(null), receiptView = _receipt[0], setReceiptView = _receipt[1];
   var _t = useState(''), toast = _t[0], setToast = _t[1];
   var _showKey = useState(false), showKeyInput = _showKey[0], setShowKeyInput = _showKey[1];
-  var _apiKey = useState(function(){try{return localStorage.getItem('anthropic_api_key')||'';}catch(e){return '';}});
+  var _apiKey = useState('');
   var apiKey = _apiKey[0], setApiKey = _apiKey[1];
+
+  // APIキーをDBから読み込み
+  useEffect(function() {
+    supabase.from('system_settings').select('value').eq('key', 'anthropic_api_key').single()
+      .then(function(res) {
+        if (res.data) { setApiKey(res.data.value); window.__apiKey = res.data.value; }
+      }).catch(function(){});
+  }, []);
 
   function flash(msg) { setToast(msg); setTimeout(function(){setToast('');}, 2500); }
 
@@ -73,8 +81,13 @@ export default function ExpenseAdminPage() {
   }
 
   function saveApiKey() {
-    try{localStorage.setItem('anthropic_api_key', apiKey);}catch(e){}
-    setShowKeyInput(false); flash('APIキーを保存しました');
+    supabase.from('system_settings').upsert({ key: 'anthropic_api_key', value: apiKey, updated_at: new Date().toISOString() })
+      .then(function(res) {
+        if (res.error) { flash('保存に失敗しました: ' + res.error.message); return; }
+        window.__apiKey = apiKey;
+        setShowKeyInput(false); flash('APIキーを保存しました');
+      })
+      .catch(function() { flash('保存に失敗しました'); });
   }
 
   function prevMonth(){if(month===1){setMonth(12);setYear(year-1);}else{setMonth(month-1);}}
@@ -199,7 +212,7 @@ export default function ExpenseAdminPage() {
       {showKeyInput && (
         <div className="card" style={{marginBottom:'12px'}}>
           <h3 className="card-title">Anthropic APIキー設定</h3>
-          <p className="card-desc">領収書の自動読み取りに使用するAPIキーです。このブラウザに保存され、全ユーザーの読み取りに使用されます。</p>
+          <p className="card-desc">領収書の自動読み取りに使用するAPIキーです。データベースに保存され、全ユーザーの読み取りに使用されます。</p>
           <div style={{display:'flex',gap:'8px',alignItems:'center'}}>
             <input className="form-input" type="password" value={apiKey} onChange={function(e){setApiKey(e.target.value);}} placeholder="sk-ant-..." style={{maxWidth:'400px'}} />
             <button className="btn-primary" style={{width:'auto',padding:'8px 16px'}} onClick={saveApiKey}>保存</button>

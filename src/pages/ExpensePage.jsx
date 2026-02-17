@@ -17,7 +17,7 @@ function statusClass(s) {
   return {'下書き':'badge-draft','申請済':'badge-submitted','承認済':'badge-approved','差戻し':'badge-rejected'}[s]||'badge-draft';
 }
 function getApiKey() {
-  try { return localStorage.getItem('anthropic_api_key') || ''; } catch(e) { return ''; }
+  try { return window.__apiKey || ''; } catch(e) { return ''; }
 }
 function getDetail(e) {
   if (e.category==='旅費交通費') {
@@ -173,6 +173,14 @@ export default function ExpensePage() {
   }
 
   useEffect(function() { loadData(); loadFavs(); }, [auth.user, year, month]);
+
+  // APIキーをDBから読み込み
+  useEffect(function() {
+    supabase.from('system_settings').select('value').eq('key', 'anthropic_api_key').single()
+      .then(function(res) {
+        if (res.data) window.__apiKey = res.data.value;
+      }).catch(function(){});
+  }, []);
 
   function toggleDate(dateStr) {
     var idx = selDates.indexOf(dateStr);
