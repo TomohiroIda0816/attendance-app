@@ -137,6 +137,7 @@ export default function ExpensePage() {
   var _uploadProgress = useState(''), uploadProgress = _uploadProgress[0], setUploadProgress = _uploadProgress[1];
   var _t = useState(''), toast = _t[0], setToast = _t[1];
   var _detail = useState(null), detailEntry = _detail[0], setDetailEntry = _detail[1];
+  var _checked = useState({}), checked = _checked[0], setChecked = _checked[1];
   var fileRef = useRef(null);
   var batchRef = useRef(null);
 
@@ -405,6 +406,58 @@ export default function ExpensePage() {
   entries.forEach(function(e){grandTotal += e.amount;});
   var isEditable = status === '下書き' || status === '差戻し';
 
+  var checkedIds = Object.keys(checked).filter(function(k){return checked[k];});
+  var allChecked = entries.length > 0 && checkedIds.length === entries.length;
+
+  function toggleCheck(id) {
+    var next = Object.assign({}, checked);
+    next[id] = !next[id];
+    setChecked(next);
+  }
+  function toggleAll() {
+    if (allChecked) { setChecked({}); }
+    else {
+      var next = {};
+      entries.forEach(function(e){next[e.id]=true;});
+      setChecked(next);
+    }
+  }
+  function handleBatchDelete() {
+    if (checkedIds.length === 0) { flash('削除する項目を選択してください'); return; }
+    if (!confirm(checkedIds.length+'件を削除しますか？')) return;
+    setSaving(true);
+    Promise.all(checkedIds.map(function(id){
+      return supabase.from('expense_entries').delete().eq('id', id);
+    })).then(function(){
+      flash(checkedIds.length+'件削除しました');
+      setChecked({}); loadData();
+    }).catch(function(){ flash('削除に失敗しました'); })
+    .finally(function(){ setSaving(false); });
+  }
+  function handleBatchDownloadReceipts() {
+    var withReceipts = entries.filter(function(e){return e.receipt_data;});
+    if (withReceipts.length === 0) { flash('領収書がありません'); return; }
+    withReceipts.forEach(function(e, i) {
+      setTimeout(function() {
+        var ext = (e.receipt_filename || '').toLowerCase().endsWith('.pdf') ? 'pdf' : 'png';
+        var mime = ext === 'pdf' ? 'application/pdf' : 'image/png';
+        var binary = atob(e.receipt_data);
+        var arr = new Uint8Array(binary.length);
+        for (var j = 0; j < binary.length; j++) arr[j] = binary.charCodeAt(j);
+        var blob = new Blob([arr], { type: mime });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = (year+'-'+String(month).padStart(2,'0')+'-'+fmtDate(e.expense_date).replace(/\//g,'')+'-'+(e.category||'expense')+'.'+ext);
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, i * 300);
+    });
+    flash(withReceipts.length+'件の領収書をダウンロード中...');
+  }
+
   if (loading) return (<div className="page-loading"><div className="spinner"></div><span>読み込み中...</span></div>);
 
   // 詳細ビュー
@@ -638,46 +691,66 @@ export default function ExpensePage() {
       {entries.length === 0 ? (
         <div className="card"><p className="empty-state">この月の経費記録はありません。</p></div>
       ) : (
-        <div className="card" style={{padding:'0',overflow:'hidden'}}>
-          <table className="admin-table">
-            <thead><tr>
-              <th style={{textAlign:'center',width:'80px'}}>日付</th>
-              <th style={{textAlign:'center',width:'90px'}}>費目</th>
-              <th style={{textAlign:'left'}}>内容</th>
-              <th style={{textAlign:'center',width:'30px'}}>📎</th>
-              <th style={{textAlign:'right',width:'100px'}}>金額</th>
-              {isEditable && <th style={{textAlign:'center',width:'100px'}}>操作</th>}
-            </tr></thead>
-            <tbody>
-              {entries.map(function(e){
-                return (
-                  <tr key={e.id} className="admin-table-row" style={{cursor:'pointer'}} onClick={function(){setDetailEntry(e);}}>
-                    <td style={{textAlign:'center'}}>{fmtDate(e.expense_date)}</td>
-                    <td style={{textAlign:'center'}}><span className={'expense-cat expense-cat-'+e.category}>{e.category}</span></td>
-                    <td style={{textAlign:'left'}}>{getDetail(e)}</td>
-                    <td style={{textAlign:'center'}}>{e.receipt_data ? (e.invoice_number ? '📎' : '⚠️') : (e.category==='旅費交通費'&&TRANSPORT_METHODS.indexOf(e.travel_method)>=0 ? '🚃' : '')}</td>
-                    <td style={{textAlign:'right',fontFamily:'var(--mono)',fontWeight:600}}>¥{e.amount.toLocaleString()}</td>
-                    {isEditable && (
-                      <td style={{textAlign:'center'}} onClick={function(ev){ev.stopPropagation();}}>
-                        <div className="admin-actions">
-                          <button className="btn-small" onClick={function(){handleEdit(e);}}>編集</button>
-                          <button className="btn-small btn-small-reject" onClick={function(){handleDeleteEntry(e.id);}}>削除</button>
-                        </div>
-                      </td>
-                    )}
-                  </tr>
-                );
-              })}
-            </tbody>
-            <tfoot>
-              <tr style={{background:'var(--bg)'}}>
-                <td colSpan={isEditable?4:4} style={{textAlign:'right',fontWeight:700,padding:'10px 8px'}}>月合計</td>
-                <td style={{textAlign:'right',fontFamily:'var(--mono)',fontWeight:700,fontSize:'14px',padding:'10px 8px'}}>¥{grandTotal.toLocaleString()}</td>
-                {isEditable && <td></td>}
-              </tr>
-            </tfoot>
-          </table>
-        </div>
+        <>
+          {/* 一括操作バー */}
+          <div className="batch-action-bar">
+            <div className="batch-action-left">
+              {checkedIds.length > 0 && isEditable && (
+                <button className="btn-danger" style={{fontSize:'12px',padding:'6px 14px'}} onClick={handleBatchDelete}>🗑 選択した{checkedIds.length}件を削除</button>
+              )}
+            </div>
+            <button className="btn-outline" style={{fontSize:'12px',padding:'6px 14px'}} onClick={handleBatchDownloadReceipts}>📥 領収書を一括DL</button>
+          </div>
+          <div className="card" style={{padding:'0',overflow:'hidden'}}>
+            <table className="admin-table">
+              <thead><tr>
+                {isEditable && <th style={{textAlign:'center',width:'36px'}}><input type="checkbox" checked={allChecked} onChange={toggleAll} /></th>}
+                <th style={{textAlign:'center',width:'80px'}}>日付</th>
+                <th style={{textAlign:'center',width:'90px'}}>費目</th>
+                <th style={{textAlign:'left'}}>内容</th>
+                <th style={{textAlign:'center',width:'30px'}}>📎</th>
+                <th style={{textAlign:'center',width:'130px'}}>インボイス</th>
+                <th style={{textAlign:'right',width:'100px'}}>金額</th>
+                {isEditable && <th style={{textAlign:'center',width:'100px'}}>操作</th>}
+              </tr></thead>
+              <tbody>
+                {entries.map(function(e){
+                  return (
+                    <tr key={e.id} className={'admin-table-row'+(checked[e.id]?' row-checked':'')} style={{cursor:'pointer'}} onClick={function(){setDetailEntry(e);}}>
+                      {isEditable && (
+                        <td style={{textAlign:'center'}} onClick={function(ev){ev.stopPropagation();}}>
+                          <input type="checkbox" checked={!!checked[e.id]} onChange={function(){toggleCheck(e.id);}} />
+                        </td>
+                      )}
+                      <td style={{textAlign:'center'}}>{fmtDate(e.expense_date)}</td>
+                      <td style={{textAlign:'center'}}><span className={'expense-cat expense-cat-'+e.category}>{e.category}</span></td>
+                      <td style={{textAlign:'left'}}>{getDetail(e)}</td>
+                      <td style={{textAlign:'center'}}>{e.receipt_data ? (e.invoice_number ? '📎' : '⚠️') : (e.category==='旅費交通費'&&TRANSPORT_METHODS.indexOf(e.travel_method)>=0 ? '🚃' : '')}</td>
+                      <td style={{textAlign:'center',fontSize:'11px',fontFamily:'var(--mono)'}}>{e.invoice_number || (e.receipt_data ? <span className="invoice-warning-inline">未登録</span> : '')}</td>
+                      <td style={{textAlign:'right',fontFamily:'var(--mono)',fontWeight:600}}>¥{e.amount.toLocaleString()}</td>
+                      {isEditable && (
+                        <td style={{textAlign:'center'}} onClick={function(ev){ev.stopPropagation();}}>
+                          <div className="admin-actions">
+                            <button className="btn-small" onClick={function(){handleEdit(e);}}>編集</button>
+                            <button className="btn-small btn-small-reject" onClick={function(){handleDeleteEntry(e.id);}}>削除</button>
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr style={{background:'var(--bg)'}}>
+                  <td colSpan={isEditable?5:4} style={{textAlign:'right',fontWeight:700,padding:'10px 8px'}}>月合計</td>
+                  <td></td>
+                  <td style={{textAlign:'right',fontFamily:'var(--mono)',fontWeight:700,fontSize:'14px',padding:'10px 8px'}}>¥{grandTotal.toLocaleString()}</td>
+                  {isEditable && <td></td>}
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </>
       )}
     </div>
   );
