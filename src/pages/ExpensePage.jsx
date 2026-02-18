@@ -52,7 +52,7 @@ function analyzeOneReceipt(base64, mediaType, apiKey) {
       model: 'claude-sonnet-4-20250514', max_tokens: 1000,
       messages: [{ role: 'user', content: [
         contentBlock,
-        { type: 'text', text: 'この領収書/レシートを分析してJSON形式で返してください。\n必ず以下のJSON形式のみで返してください（説明文や```は不要）:\n{"category":"旅費交通費 or 書籍代 or その他","amount":数値,"description":"内容の説明","travel_from":"出発地(旅費交通費の場合)","travel_to":"到着地(旅費交通費の場合)","travel_method":"交通手段(旅費交通費の場合)","book_title":"書籍名(書籍代の場合)","date":"YYYY-MM-DD形式の日付(読み取れた場合)"}' }
+        { type: 'text', text: 'この領収書/レシートを分析してJSON形式で返してください。\n必ず以下のJSON形式のみで返してください（説明文や```は不要）:\n{"category":"旅費交通費 or 書籍代 or その他","amount":数値,"description":"内容の説明","travel_from":"出発地(旅費交通費の場合)","travel_to":"到着地(旅費交通費の場合)","travel_method":"交通手段(旅費交通費の場合)","book_title":"書籍名(書籍代の場合)","date":"YYYY-MM-DD形式の日付(読み取れた場合)","invoice_number":"T+13桁のインボイス登録番号(読み取れた場合、なければ空文字)"}' }
       ]}]
     })
   }).then(function(resp) { return resp.json(); }).then(function(data) {
@@ -116,6 +116,7 @@ export default function ExpensePage() {
   var _tripType = useState('片道'), tripType = _tripType[0], setTripType = _tripType[1];
   var _receiptData = useState(''), receiptData = _receiptData[0], setReceiptData = _receiptData[1];
   var _receiptName = useState(''), receiptName = _receiptName[0], setReceiptName = _receiptName[1];
+  var _invoiceNum = useState(''), invoiceNum = _invoiceNum[0], setInvoiceNum = _invoiceNum[1];
   // 交通費フォーム
   var _showTransport = useState(false), showTransport = _showTransport[0], setShowTransport = _showTransport[1];
   var _tMeth = useState('電車'), tMeth = _tMeth[0], setTMeth = _tMeth[1];
@@ -195,7 +196,7 @@ export default function ExpensePage() {
   function resetForm() {
     setExpDate(''); setCat('その他'); setAmt(''); setDesc('');
     setTFrom(''); setTTo(''); setTMethod(''); setBookTitle(''); setTripType('片道');
-    setReceiptData(''); setReceiptName('');
+    setReceiptData(''); setReceiptName(''); setInvoiceNum('');
     setEditId(null); setShowForm(false);
     if (fileRef.current) fileRef.current.value = '';
   }
@@ -218,6 +219,7 @@ export default function ExpensePage() {
           if (result.travel_method) setTMethod(result.travel_method);
           if (result.book_title) setBookTitle(result.book_title);
           if (result.date) setExpDate(result.date);
+          if (result.invoice_number) setInvoiceNum(result.invoice_number);
           flash('読み取り完了');
         })
         .catch(function() { flash('自動読み取りに失敗'); })
@@ -252,6 +254,7 @@ export default function ExpensePage() {
             description: result.description || '', travel_from: result.travel_from || '',
             travel_to: result.travel_to || '', travel_method: result.travel_method || '',
             book_title: result.book_title || '', receipt_data: b64, receipt_filename: file.name,
+            invoice_number: result.invoice_number || '',
           });
         }).then(function() { succeeded++; });
       }).catch(function() {
@@ -269,6 +272,10 @@ export default function ExpensePage() {
 
   function handleSave() {
     if (!expDate || !amt) { flash('日付と金額は必須です'); return; }
+    // 旅費交通費で発着点必須（電車・バス以外）
+    if (cat === '旅費交通費' && tMethod && TRANSPORT_METHODS.indexOf(tMethod) < 0) {
+      if (!tFrom || !tTo) { flash('旅費交通費の発着点は必須です'); return; }
+    }
     setSaving(true);
     var data = {
       report_id: reportId, expense_date: expDate, category: cat,
@@ -276,6 +283,7 @@ export default function ExpensePage() {
       travel_from: tFrom, travel_to: tTo, travel_method: tMethod,
       book_title: bookTitle, trip_type: tripType,
       receipt_data: receiptData, receipt_filename: receiptName,
+      invoice_number: invoiceNum,
     };
     var p = editId ? supabase.from('expense_entries').update(data).eq('id', editId)
       : supabase.from('expense_entries').insert(data);
@@ -362,6 +370,7 @@ export default function ExpensePage() {
       setTMethod(e.travel_method||''); setBookTitle(e.book_title||'');
       setTripType(e.trip_type||'片道');
       setReceiptData(e.receipt_data||''); setReceiptName(e.receipt_filename||'');
+      setInvoiceNum(e.invoice_number||'');
       setEditId(e.id); setShowForm(true); setShowTransport(false);
     }
     setDetailEntry(null);
@@ -418,6 +427,7 @@ export default function ExpensePage() {
             {de.category==='旅費交通費'&&de.trip_type&&(<div className="trip-detail-item"><span className="trip-detail-label">片道/往復</span><span className="trip-detail-value">{de.trip_type}</span></div>)}
             {de.category==='書籍代'&&de.book_title&&(<div className="trip-detail-item"><span className="trip-detail-label">書籍名</span><span className="trip-detail-value">{de.book_title}</span></div>)}
             {de.category!=='旅費交通費'&&de.description&&(<div className="trip-detail-item"><span className="trip-detail-label">内容</span><span className="trip-detail-value">{de.description}</span></div>)}
+            {de.receipt_data && (<div className="trip-detail-item"><span className="trip-detail-label">インボイス番号</span><span className="trip-detail-value">{de.invoice_number ? de.invoice_number : <span className="invoice-warning-inline">⚠️ 未登録</span>}</span></div>)}
           </div>
           {de.receipt_data && (
             <div className="receipt-preview-section">
@@ -608,6 +618,15 @@ export default function ExpensePage() {
           </div>)}
           {cat==='書籍代'&&(<div style={{marginTop:'8px'}}><div className="form-group"><label className="form-label">書籍名</label><input className="form-input" value={bookTitle} onChange={function(e){setBookTitle(e.target.value);}} /></div></div>)}
           {cat==='その他'&&(<div style={{marginTop:'8px'}}><div className="form-group"><label className="form-label">内容</label><input className="form-input" value={desc} onChange={function(e){setDesc(e.target.value);}} /></div></div>)}
+          {receiptData && (
+            <div style={{marginTop:'8px'}}>
+              <div className="form-group">
+                <label className="form-label">インボイス番号（T+13桁）</label>
+                <input className="form-input" value={invoiceNum} onChange={function(e){setInvoiceNum(e.target.value);}} placeholder="T1234567890123" />
+                {receiptData && !invoiceNum && <div className="invoice-warning">⚠️ インボイス番号が未入力です</div>}
+              </div>
+            </div>
+          )}
           <div style={{display:'flex',gap:'8px',marginTop:'16px'}}>
             <button className="btn-primary" style={{width:'auto',padding:'10px 24px'}} onClick={handleSave} disabled={saving}>{saving?'保存中...':editId?'更新':'登録'}</button>
             <button className="btn-outline" onClick={resetForm}>キャンセル</button>
@@ -636,7 +655,7 @@ export default function ExpensePage() {
                     <td style={{textAlign:'center'}}>{fmtDate(e.expense_date)}</td>
                     <td style={{textAlign:'center'}}><span className={'expense-cat expense-cat-'+e.category}>{e.category}</span></td>
                     <td style={{textAlign:'left'}}>{getDetail(e)}</td>
-                    <td style={{textAlign:'center'}}>{e.receipt_data ? '📎' : (e.category==='旅費交通費'&&TRANSPORT_METHODS.indexOf(e.travel_method)>=0 ? '🚃' : '')}</td>
+                    <td style={{textAlign:'center'}}>{e.receipt_data ? (e.invoice_number ? '📎' : '⚠️') : (e.category==='旅費交通費'&&TRANSPORT_METHODS.indexOf(e.travel_method)>=0 ? '🚃' : '')}</td>
                     <td style={{textAlign:'right',fontFamily:'var(--mono)',fontWeight:600}}>¥{e.amount.toLocaleString()}</td>
                     {isEditable && (
                       <td style={{textAlign:'center'}} onClick={function(ev){ev.stopPropagation();}}>

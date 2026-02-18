@@ -64,6 +64,7 @@ export function openPrintPDF(rows, year, month, userName, status) {
         <th style="width:30px">日</th>
         <th style="width:28px">曜日</th>
         <th style="width:60px">祝日</th>
+        <th style="width:48px">区分</th>
         <th style="width:50px">開始</th>
         <th style="width:50px">終了</th>
         <th style="width:50px">控除</th>
@@ -80,6 +81,7 @@ export function openPrintPDF(rows, year, month, userName, status) {
           <td>${r.day}</td>
           <td class="${dowCls}">${r.dow}</td>
           <td style="font-size:8px;color:#dc2626">${r.holiday || ''}</td>
+          <td style="font-size:8px;${r.work_type==='有給'?'color:#059669;font-weight:700':r.work_type==='欠勤'?'color:#dc2626;font-weight:700':r.work_type&&r.work_type.includes('半休')?'color:#2563eb;font-weight:700':''}">${r.work_type && r.work_type !== '通常' ? r.work_type : ''}</td>
           <td>${r.start_time || ''}</td>
           <td>${r.end_time || ''}</td>
           <td>${r.deduction || ''}</td>
