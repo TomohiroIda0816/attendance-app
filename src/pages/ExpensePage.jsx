@@ -117,6 +117,8 @@ export default function ExpensePage() {
   var _receiptData = useState(''), receiptData = _receiptData[0], setReceiptData = _receiptData[1];
   var _receiptName = useState(''), receiptName = _receiptName[0], setReceiptName = _receiptName[1];
   var _invoiceNum = useState(''), invoiceNum = _invoiceNum[0], setInvoiceNum = _invoiceNum[1];
+  var _noReceiptReason = useState(''), noReceiptReason = _noReceiptReason[0], setNoReceiptReason = _noReceiptReason[1];
+  var _noReceiptMode = useState(false), noReceiptMode = _noReceiptMode[0], setNoReceiptMode = _noReceiptMode[1];
   // 交通費フォーム
   var _showTransport = useState(false), showTransport = _showTransport[0], setShowTransport = _showTransport[1];
   var _tMeth = useState('電車'), tMeth = _tMeth[0], setTMeth = _tMeth[1];
@@ -198,6 +200,7 @@ export default function ExpensePage() {
     setExpDate(''); setCat('その他'); setAmt(''); setDesc('');
     setTFrom(''); setTTo(''); setTMethod(''); setBookTitle(''); setTripType('片道');
     setReceiptData(''); setReceiptName(''); setInvoiceNum('');
+    setNoReceiptReason(''); setNoReceiptMode(false);
     setEditId(null); setShowForm(false);
     if (fileRef.current) fileRef.current.value = '';
   }
@@ -277,10 +280,17 @@ export default function ExpensePage() {
     if (cat === '旅費交通費' && tMethod && TRANSPORT_METHODS.indexOf(tMethod) < 0) {
       if (!tFrom || !tTo) { flash('旅費交通費の発着点は必須です'); return; }
     }
+    // 領収書必須チェック（その他経費フォームからの登録）
+    if (!receiptData && !noReceiptMode) { flash('領収書のアップロードは必須です。領収書がない場合は「領収書なしで申告」を選択してください'); return; }
+    if (!receiptData && noReceiptMode && !noReceiptReason.trim()) { flash('領収書なしの理由を入力してください'); return; }
     setSaving(true);
+    var descWithReason = desc;
+    if (!receiptData && noReceiptMode && noReceiptReason.trim()) {
+      descWithReason = (desc ? desc + ' ' : '') + '【領収書なし理由: ' + noReceiptReason.trim() + '】';
+    }
     var data = {
       report_id: reportId, expense_date: expDate, category: cat,
-      amount: Math.round(Number(amt)) || 0, description: desc,
+      amount: Math.round(Number(amt)) || 0, description: descWithReason,
       travel_from: tFrom, travel_to: tTo, travel_method: tMethod,
       book_title: bookTitle, trip_type: tripType,
       receipt_data: receiptData, receipt_filename: receiptName,
@@ -540,10 +550,10 @@ export default function ExpensePage() {
           </div>
           <div className="expense-btn-row">
             <button className={'expense-tab-btn'+(showTransport?' expense-tab-active':'')} onClick={function(){resetForm();if(!showTransport){setSelDates([]);}setShowTransport(!showTransport);setShowForm(false);}}>
-              🚃 交通費を追加
+              🚃 交通費（電車・バス）
             </button>
             <button className={'expense-tab-btn'+(showForm?' expense-tab-active':'')} onClick={function(){resetTransport();setShowForm(!showForm);setShowTransport(false);}}>
-              ✏️ その他経費を追加
+              ✏️ その他経費 ※領収書必須
             </button>
           </div>
         </div>
@@ -552,7 +562,7 @@ export default function ExpensePage() {
       {/* 交通費入力フォーム */}
       {showTransport && isEditable && (
         <div className="card" style={{marginBottom:'16px'}}>
-          <h3 className="card-title">{tEditId ? '交通費を編集' : '🚃 交通費を追加（領収書不要）'}</h3>
+          <h3 className="card-title">{tEditId ? '交通費を編集' : '🚃 交通費（電車・バス）— 領収書不要'}</h3>
 
           {/* お気に入りルート */}
           {favs.length > 0 && (
@@ -645,12 +655,31 @@ export default function ExpensePage() {
         <div className="card" style={{marginBottom:'16px'}}>
           <h3 className="card-title">{editId ? '経費を編集' : '✏️ その他の経費を追加'}</h3>
           <div className="receipt-upload">
-            <label className="receipt-label">
-              {uploading ? '🔄 読み取り中...' : '📎 領収書を添付（任意）'}
-              <input ref={fileRef} type="file" accept="image/*,.pdf" onChange={handleSingleFile} disabled={uploading} style={{display:'none'}} />
+            <label className="receipt-label receipt-label-required">
+              {uploading ? '🔄 読み取り中...' : '📎 領収書を添付（必須）'}
+              <input ref={fileRef} type="file" accept="image/*,.pdf" onChange={handleSingleFile} disabled={uploading||noReceiptMode} style={{display:'none'}} />
             </label>
             {receiptName && <span className="receipt-attached">✅ {receiptName}</span>}
+            {!receiptName && !noReceiptMode && <span className="receipt-required-hint">⚠️ 領収書のアップロードが必要です</span>}
           </div>
+          {!receiptData && (
+            <div className="no-receipt-section">
+              {!noReceiptMode ? (
+                <button className="btn-ghost" style={{fontSize:'11px',color:'#94a3b8'}} onClick={function(){setNoReceiptMode(true);}}>領収書がない場合はこちら（例外申告）</button>
+              ) : (
+                <div className="no-receipt-form">
+                  <div className="no-receipt-header">
+                    <span className="no-receipt-badge">⚠️ 領収書なしで申告</span>
+                    <button className="btn-ghost" style={{fontSize:'11px'}} onClick={function(){setNoReceiptMode(false);setNoReceiptReason('');}}>取り消し</button>
+                  </div>
+                  <div className="form-group" style={{marginTop:'8px'}}>
+                    <label className="form-label">領収書がない理由（必須）</label>
+                    <input className="form-input" value={noReceiptReason} onChange={function(e){setNoReceiptReason(e.target.value);}} placeholder="例: 自販機での購入のため領収書なし" />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
           <div className="expense-form-grid">
             <div className="form-group"><label className="form-label">日付</label><input className="form-input" type="date" value={expDate} onChange={function(e){setExpDate(e.target.value);}} /></div>
             <div className="form-group"><label className="form-label">費目</label>

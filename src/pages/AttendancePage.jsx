@@ -106,7 +106,7 @@ export default function AttendancePage() {
         supabase.from('attendance_rows').update({
           start_time: row.start_time, end_time: row.end_time,
           deduction: row.deduction, work_hours: row.work_hours,
-          work_content: row.work_content, transport: Number(row.transport) || 0,
+          work_content: row.work_content,
           work_type: row.work_type || '通常',
         }).eq('id', row.id).then(function() {}).catch(function() {});
       }

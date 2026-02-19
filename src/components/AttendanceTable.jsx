@@ -1,25 +1,36 @@
-import { TIME_OPTIONS, DEDUCTION_OPTIONS, calcWorkHours, totalHours, totalTransport, workDayCount } from '../lib/utils';
+import { TIME_OPTIONS, DEDUCTION_OPTIONS, calcWorkHours, totalHours, workDayCount } from '../lib/utils';
 
 var WORK_TYPES = ['通常', '有給', '半休(午前)', '半休(午後)', '欠勤'];
 
-function getWarnings(r) {
-  var warns = [];
-  if (!r.start_time || !r.end_time || !r.work_hours) return warns;
-  if (r.work_type === '有給' || r.work_type === '欠勤') return warns;
-  // 稼働時間を分に変換
+function getOvertime(r) {
+  if (!r.work_hours) return '';
+  if (r.work_type === '有給' || r.work_type === '欠勤') return '';
   var whParts = r.work_hours.split(':');
   var workMin = parseInt(whParts[0]) * 60 + parseInt(whParts[1] || 0);
-  // 控除時間を分に変換
+  if (workMin <= 480) return '';
+  var ot = workMin - 480;
+  return Math.floor(ot / 60) + ':' + String(ot % 60).padStart(2, '0');
+}
+
+function getBreakWarning(r) {
+  if (!r.start_time || !r.end_time) return '';
+  if (r.work_type === '有給' || r.work_type === '欠勤') return '';
   var dedMin = 0;
   if (r.deduction) { var dp = r.deduction.split(':'); dedMin = parseInt(dp[0]) * 60 + parseInt(dp[1] || 0); }
-  // 総勤務時間（控除前）
   var sp = r.start_time.split(':'), ep = r.end_time.split(':');
   var grossMin = (parseInt(ep[0]) * 60 + parseInt(ep[1])) - (parseInt(sp[0]) * 60 + parseInt(sp[1]));
-  // 6時間超で休憩0分
-  if (grossMin > 360 && dedMin === 0) warns.push('⚠️ 6h超勤務で休憩なし');
-  // 8時間超で残業
-  if (workMin > 480) warns.push('🕐 残業 ' + Math.floor((workMin - 480) / 60) + ':' + String((workMin - 480) % 60).padStart(2, '0'));
-  return warns;
+  if (grossMin > 360 && dedMin === 0) return '⚠️ 休憩なし';
+  return '';
+}
+
+function totalOvertime(rows) {
+  var t = 0;
+  rows.forEach(function(r) {
+    var ot = getOvertime(r);
+    if (ot) { var p = ot.split(':'); t += parseInt(p[0]) * 60 + parseInt(p[1] || 0); }
+  });
+  if (t === 0) return '';
+  return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0');
 }
 
 function countLeave(rows) {
@@ -40,10 +51,6 @@ export default function AttendanceTable({ rows, onCellChange, readOnly = false }
     if (['start_time', 'end_time', 'deduction'].includes(field)) {
       updated.work_hours = calcWorkHours(updated.start_time, updated.end_time, updated.deduction);
     }
-    if (field === 'transport') {
-      updated.transport = Number(value) || 0;
-    }
-    // 有給・欠勤の場合は時間をクリア
     if (field === 'work_type') {
       if (value === '有給' || value === '欠勤') {
         updated.start_time = '';
@@ -51,14 +58,13 @@ export default function AttendanceTable({ rows, onCellChange, readOnly = false }
         updated.deduction = '';
         updated.work_hours = '';
         updated.work_content = value;
-      } else if (value === '通常' && (!updated.start_time)) {
-        // 通常に戻した場合はデフォルト値は入れない（ユーザーに任せる）
       }
     }
     onCellChange(index, updated);
   };
 
   var leave = countLeave(rows);
+  var otTotal = totalOvertime(rows);
 
   return (
     <div className="table-wrap">
@@ -73,8 +79,8 @@ export default function AttendanceTable({ rows, onCellChange, readOnly = false }
             <th style={{ width: 82 }}>終了時間</th>
             <th style={{ width: 82 }}>控除時間</th>
             <th style={{ width: 64 }}>稼働時間</th>
+            <th style={{ width: 58 }}>残業</th>
             <th>稼動内容</th>
-            <th style={{ width: 96 }}>交通費(円)</th>
           </tr>
         </thead>
         <tbody>
@@ -85,8 +91,9 @@ export default function AttendanceTable({ rows, onCellChange, readOnly = false }
             const dowClass = r.dow === '日' ? 'dow-sun' : r.dow === '土' ? 'dow-sat' : '';
             const isLeave = r.work_type === '有給' || r.work_type === '欠勤';
             const isHalf = r.work_type === '半休(午前)' || r.work_type === '半休(午後)';
-            const warns = getWarnings(r);
             const workTypeClass = r.work_type === '有給' ? 'wt-paid' : r.work_type === '欠勤' ? 'wt-absent' : isHalf ? 'wt-half' : '';
+            const ot = getOvertime(r);
+            const brkWarn = getBreakWarning(r);
 
             return (
               <tr key={i} className={trClass}>
@@ -139,8 +146,10 @@ export default function AttendanceTable({ rows, onCellChange, readOnly = false }
 
                 <td className="cell-center cell-hours">
                   {r.work_hours}
-                  {warns.map(function(w, wi) { return <div key={wi} className="cell-warning">{w}</div>; })}
+                  {brkWarn && <div className="cell-warning">{brkWarn}</div>}
                 </td>
+
+                <td className="cell-center cell-overtime">{ot}</td>
 
                 {readOnly ? (
                   <td className="cell-content-ro">{r.work_content}</td>
@@ -148,17 +157,6 @@ export default function AttendanceTable({ rows, onCellChange, readOnly = false }
                   <td className="cell-input">
                     <input className="cell-text" value={r.work_content} disabled={isLeave}
                       onChange={e => handleChange(i, 'work_content', e.target.value)} />
-                  </td>
-                )}
-
-                {readOnly ? (
-                  <td className="cell-center">
-                    {r.transport ? `¥${Number(r.transport).toLocaleString()}` : ''}
-                  </td>
-                ) : (
-                  <td className="cell-input">
-                    <input className="cell-number" type="number" value={r.transport || ''} disabled={isLeave}
-                      onChange={e => handleChange(i, 'transport', e.target.value)} placeholder="0" />
                   </td>
                 )}
               </tr>
@@ -169,12 +167,12 @@ export default function AttendanceTable({ rows, onCellChange, readOnly = false }
           <tr className="total-row">
             <td colSpan={7} className="total-label">合計</td>
             <td className="total-value">{totalHours(rows)}</td>
+            <td className="total-value cell-overtime">{otTotal}</td>
             <td className="total-days">
               稼働{workDayCount(rows)}日
               {leave.paid > 0 && <span className="leave-badge leave-paid">有給{leave.paid}</span>}
               {(leave.halfAm + leave.halfPm) > 0 && <span className="leave-badge leave-half">半休{leave.halfAm + leave.halfPm}</span>}
             </td>
-            <td className="total-value">¥{totalTransport(rows).toLocaleString()}</td>
           </tr>
         </tfoot>
       </table>

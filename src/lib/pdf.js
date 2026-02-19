@@ -1,9 +1,29 @@
-import { totalHours, totalTransport, workDayCount } from './utils';
+import { totalHours, workDayCount } from './utils';
+
+function calcOvertimeForPdf(r) {
+  if (!r.work_hours) return '';
+  if (r.work_type === '有給' || r.work_type === '欠勤') return '';
+  var p = r.work_hours.split(':');
+  var m = parseInt(p[0]) * 60 + parseInt(p[1] || 0);
+  if (m <= 480) return '';
+  var ot = m - 480;
+  return Math.floor(ot / 60) + ':' + String(ot % 60).padStart(2, '0');
+}
+
+function totalOvertimeForPdf(rows) {
+  var t = 0;
+  rows.forEach(function(r) {
+    var ot = calcOvertimeForPdf(r);
+    if (ot) { var p = ot.split(':'); t += parseInt(p[0]) * 60 + parseInt(p[1] || 0); }
+  });
+  if (t === 0) return '0:00';
+  return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0');
+}
 
 export function openPrintPDF(rows, year, month, userName, status) {
   const th = totalHours(rows);
-  const tt = totalTransport(rows);
   const wd = workDayCount(rows);
+  const ot = totalOvertimeForPdf(rows);
 
   const html = `<!DOCTYPE html>
 <html lang="ja">
@@ -69,8 +89,8 @@ export function openPrintPDF(rows, year, month, userName, status) {
         <th style="width:50px">終了</th>
         <th style="width:50px">控除</th>
         <th style="width:50px">稼働</th>
+        <th style="width:50px">残業</th>
         <th>稼動内容</th>
-        <th style="width:70px">交通費</th>
       </tr>
     </thead>
     <tbody>
@@ -86,8 +106,8 @@ export function openPrintPDF(rows, year, month, userName, status) {
           <td>${r.end_time || ''}</td>
           <td>${r.deduction || ''}</td>
           <td style="font-weight:600">${r.work_hours || ''}</td>
+          <td style="color:#f59e0b;font-weight:600">${calcOvertimeForPdf(r)}</td>
           <td style="text-align:left">${r.work_content || ''}</td>
-          <td>${r.transport ? '¥' + Number(r.transport).toLocaleString() : ''}</td>
         </tr>`;
       }).join('')}
     </tbody>
@@ -95,7 +115,7 @@ export function openPrintPDF(rows, year, month, userName, status) {
   <div class="footer-row">
     <span>稼働日数: ${wd}日</span>
     <span>合計稼働時間: ${th}</span>
-    <span>交通費合計: ¥${tt.toLocaleString()}</span>
+    <span>合計残業時間: ${ot}</span>
   </div>
   <div class="signature-area">
     <div>
