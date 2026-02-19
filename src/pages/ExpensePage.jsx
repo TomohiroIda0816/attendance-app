@@ -299,7 +299,7 @@ export default function ExpensePage() {
     // 3,000円以上は購買申請確認
     if (amount >= 3000 && !purchaseApproved) { flash('承認を得てから登録してください'); return; }
     // 領収書金額と入力金額の不一致チェック
-    if (receiptAmt && String(amount) !== receiptAmt && !amtMismatchReason.trim()) {
+    if (receiptAmt && String(amount) !== String(Math.round(Number(receiptAmt))) && !amtMismatchReason.trim()) {
       flash('領収書の金額（¥' + Number(receiptAmt).toLocaleString() + '）と入力金額（¥' + amount.toLocaleString() + '）が異なります。理由を入力してください');
       return;
     }
@@ -322,7 +322,7 @@ export default function ExpensePage() {
     if (receiptData && !invoiceNum && noInvoiceMode) {
       descWithReason = (descWithReason ? descWithReason + ' ' : '') + '【インボイス番号なし: 責任者了承済】';
     }
-    if (receiptAmt && String(amount) !== receiptAmt && amtMismatchReason.trim()) {
+    if (receiptAmt && String(amount) !== String(Math.round(Number(receiptAmt))) && amtMismatchReason.trim()) {
       descWithReason = (descWithReason ? descWithReason + ' ' : '') + '【金額相違理由(領収書¥' + Number(receiptAmt).toLocaleString() + '→入力¥' + amount.toLocaleString() + '): ' + amtMismatchReason.trim() + '】';
     }
     var data = {
@@ -771,7 +771,7 @@ export default function ExpensePage() {
             </div>
             <div className="form-group"><label className="form-label">金額（円）</label><input className="form-input" type="number" value={amt} onChange={function(e){setAmt(e.target.value);}} placeholder="0" /></div>
           </div>
-          {receiptAmt && amt && String(Math.round(Number(amt))) !== receiptAmt && (
+          {receiptAmt && amt && String(Math.round(Number(amt))) !== String(Math.round(Number(receiptAmt))) && (
             <div className="no-receipt-form" style={{marginTop:'8px'}}>
               <div className="no-receipt-header">
                 <span className="no-receipt-badge">⚠️ 領収書金額（¥{Number(receiptAmt).toLocaleString()}）と入力金額（¥{Number(amt).toLocaleString()}）が異なります</span>
