@@ -833,6 +833,7 @@ body {
 .cell-overtime { color: #f59e0b; font-family: var(--mono); font-weight: 700; font-size: 11px; }
 .receipt-label-required { border-color: var(--accent); }
 .receipt-required-hint { display: block; margin-top: 6px; font-size: 12px; color: #f59e0b; font-weight: 600; }
+.receipt-hint-sub { display: block; margin-top: 4px; font-size: 11px; color: #94a3b8; }
 .no-receipt-section { margin-top: 8px; margin-bottom: 8px; }
 .no-receipt-form { background: #fef3c7; border: 1px solid #fbbf24; border-radius: 8px; padding: 12px; }
 .no-receipt-header { display: flex; justify-content: space-between; align-items: center; }

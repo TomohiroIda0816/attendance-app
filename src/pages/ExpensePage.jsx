@@ -541,13 +541,6 @@ export default function ExpensePage() {
 
       {isEditable && (
         <div className="expense-actions-row">
-          <div className="batch-upload-card">
-            <label className="batch-upload-label">
-              {uploading ? ('🔄 '+uploadProgress) : '📎 領収書を一括アップロード'}
-              <input ref={batchRef} type="file" accept="image/*,.pdf" multiple onChange={handleBatchUpload} disabled={uploading} style={{display:'none'}} />
-            </label>
-            <span className="receipt-hint">{getApiKey() ? '複数の領収書を選択 → 自動で個別の経費に登録' : 'API未設定のため自動読み取り不可'}</span>
-          </div>
           <div className="expense-btn-row">
             <button className={'expense-tab-btn'+(showTransport?' expense-tab-active':'')} onClick={function(){resetForm();if(!showTransport){setSelDates([]);}setShowTransport(!showTransport);setShowForm(false);}}>
               🚃 交通費（電車・バス）
@@ -656,11 +649,55 @@ export default function ExpensePage() {
           <h3 className="card-title">{editId ? '経費を編集' : '✏️ その他の経費を追加'}</h3>
           <div className="receipt-upload">
             <label className="receipt-label receipt-label-required">
-              {uploading ? '🔄 読み取り中...' : '📎 領収書を添付（必須）'}
-              <input ref={fileRef} type="file" accept="image/*,.pdf" onChange={handleSingleFile} disabled={uploading||noReceiptMode} style={{display:'none'}} />
+              {uploading ? ('🔄 '+uploadProgress) : '📎 領収書を添付（複数可）※必須'}
+              <input ref={fileRef} type="file" accept="image/*,.pdf" multiple onChange={function(e){
+                var files = Array.from(e.target.files);
+                if (!files.length) return;
+                if (files.length === 1) { handleSingleFile(e); return; }
+                /* 複数ファイル → 一括登録 */
+                var apiKey = getApiKey();
+                if (!apiKey) { flash('APIキー未設定のため一括登録不可。1枚ずつ添付してください'); return; }
+                if (!reportId) return;
+                setUploading(true);
+                var total = files.length, succeeded = 0;
+                setUploadProgress('0 / '+total+' 処理中...');
+                function processNext(idx) {
+                  if (idx >= files.length) {
+                    setUploading(false); setUploadProgress('');
+                    if (fileRef.current) fileRef.current.value = '';
+                    flash(succeeded+'件登録'); loadData(); return;
+                  }
+                  var file = files[idx];
+                  setUploadProgress((idx+1)+' / '+total+' ('+file.name+')');
+                  fileToBase64(file).then(function(b64) {
+                    return analyzeOneReceipt(b64, file.type||'image/png', apiKey).then(function(result) {
+                      return supabase.from('expense_entries').insert({
+                        report_id: reportId,
+                        expense_date: result.date || (year+'-'+String(month).padStart(2,'0')+'-01'),
+                        category: (result.category && CATEGORIES.indexOf(result.category)>=0) ? result.category : 'その他',
+                        amount: Math.round(Number(result.amount)) || 0,
+                        description: result.description || '', travel_from: result.travel_from || '',
+                        travel_to: result.travel_to || '', travel_method: result.travel_method || '',
+                        book_title: result.book_title || '', receipt_data: b64, receipt_filename: file.name,
+                        invoice_number: result.invoice_number || '',
+                      });
+                    }).then(function() { succeeded++; });
+                  }).catch(function() {
+                    return fileToBase64(file).then(function(b64) {
+                      return supabase.from('expense_entries').insert({
+                        report_id: reportId, expense_date: year+'-'+String(month).padStart(2,'0')+'-01',
+                        category: 'その他', amount: 0, description: file.name,
+                        receipt_data: b64, receipt_filename: file.name,
+                      });
+                    }).then(function() { succeeded++; });
+                  }).finally(function() { processNext(idx + 1); });
+                }
+                processNext(0);
+              }} disabled={uploading||noReceiptMode} style={{display:'none'}} />
             </label>
             {receiptName && <span className="receipt-attached">✅ {receiptName}</span>}
             {!receiptName && !noReceiptMode && <span className="receipt-required-hint">⚠️ 領収書のアップロードが必要です</span>}
+            {!receiptName && !noReceiptMode && getApiKey() && <span className="receipt-hint-sub">複数選択で自動読取＆一括登録されます</span>}
           </div>
           {!receiptData && (
             <div className="no-receipt-section">
