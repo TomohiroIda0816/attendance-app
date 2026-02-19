@@ -139,7 +139,10 @@ export default function AdminPage() {
             {(rpt.status === '申請済' || rpt.status === '差戻し') && (
               <button className="btn-submit" onClick={function() { updateStatus(rpt.id, '承認済'); }}>✓ 承認</button>
             )}
-            {rpt.status === '申請済' && (
+            {rpt.status === '承認済' && (
+              <button className="btn-danger" onClick={function() { if(confirm('承認を取り消しますか？')){updateStatus(rpt.id, '申請済');} }}>↩ 承認取消</button>
+            )}
+            {(rpt.status === '申請済' || rpt.status === '承認済') && (
               <button className="btn-danger" onClick={function() { setShowReject(!showReject); setEditing(false); }}>✗ 差戻し</button>
             )}
             <button className="btn-outline" onClick={function() { openPrintPDF(detailView.rows, year, month, u.full_name, rpt.status); }}>📄 PDF</button>
@@ -222,6 +225,9 @@ export default function AdminPage() {
                             <button className="btn-small btn-small-approve" onClick={function() { updateStatus(u.report.id, '承認済'); }}>承認</button>
                             <button className="btn-small btn-small-reject" onClick={function() { updateStatus(u.report.id, '差戻し'); }}>差戻</button>
                           </>)}
+                          {u.status === '承認済' && (
+                            <button className="btn-small btn-small-reject" onClick={function() { if(confirm('承認を取り消しますか？')){updateStatus(u.report.id, '申請済');} }}>承認取消</button>
+                          )}
                         </div>
                       ) : (<span className="admin-no-data">—</span>)}
                     </td>

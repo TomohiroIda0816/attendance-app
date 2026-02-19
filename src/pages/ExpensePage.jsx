@@ -108,6 +108,8 @@ export default function ExpensePage() {
   var _date = useState(''), expDate = _date[0], setExpDate = _date[1];
   var _cat = useState('その他'), cat = _cat[0], setCat = _cat[1];
   var _amt = useState(''), amt = _amt[0], setAmt = _amt[1];
+  var _receiptAmt = useState(''), receiptAmt = _receiptAmt[0], setReceiptAmt = _receiptAmt[1];
+  var _amtMismatchReason = useState(''), amtMismatchReason = _amtMismatchReason[0], setAmtMismatchReason = _amtMismatchReason[1];
   var _desc = useState(''), desc = _desc[0], setDesc = _desc[1];
   var _from = useState(''), tFrom = _from[0], setTFrom = _from[1];
   var _to = useState(''), tTo = _to[0], setTTo = _to[1];
@@ -202,6 +204,7 @@ export default function ExpensePage() {
   // ---- 領収書系 ----
   function resetForm() {
     setExpDate(''); setCat('その他'); setAmt(''); setDesc('');
+    setReceiptAmt(''); setAmtMismatchReason('');
     setTFrom(''); setTTo(''); setTMethod(''); setBookTitle(''); setTripType('片道');
     setReceiptData(''); setReceiptName(''); setInvoiceNum('');
     setNoReceiptReason(''); setNoReceiptMode(false); setNoReceiptApproved(false);
@@ -221,7 +224,7 @@ export default function ExpensePage() {
       analyzeOneReceipt(b64, file.type||'image/png', apiKey)
         .then(function(result) {
           if (result.category && CATEGORIES.indexOf(result.category)>=0) setCat(result.category);
-          if (result.amount) setAmt(String(Math.round(Number(result.amount))));
+          if (result.amount) { setAmt(String(Math.round(Number(result.amount)))); setReceiptAmt(String(Math.round(Number(result.amount)))); }
           if (result.description) setDesc(result.description);
           if (result.travel_from) setTFrom(result.travel_from);
           if (result.travel_to) setTTo(result.travel_to);
@@ -295,6 +298,11 @@ export default function ExpensePage() {
     if (receiptData && !invoiceNum && noInvoiceMode && !noInvoiceApproved) { flash('了承を得てから登録してください'); return; }
     // 3,000円以上は購買申請確認
     if (amount >= 3000 && !purchaseApproved) { flash('承認を得てから登録してください'); return; }
+    // 領収書金額と入力金額の不一致チェック
+    if (receiptAmt && String(amount) !== receiptAmt && !amtMismatchReason.trim()) {
+      flash('領収書の金額（¥' + Number(receiptAmt).toLocaleString() + '）と入力金額（¥' + amount.toLocaleString() + '）が異なります。理由を入力してください');
+      return;
+    }
     // 予約系経費: 利用月以降の申請チェック
     if (cat === '旅費交通費' && tMethod && TRANSPORT_METHODS.indexOf(tMethod) < 0) {
       var expDt = new Date(expDate);
@@ -313,6 +321,9 @@ export default function ExpensePage() {
     }
     if (receiptData && !invoiceNum && noInvoiceMode) {
       descWithReason = (descWithReason ? descWithReason + ' ' : '') + '【インボイス番号なし: 責任者了承済】';
+    }
+    if (receiptAmt && String(amount) !== receiptAmt && amtMismatchReason.trim()) {
+      descWithReason = (descWithReason ? descWithReason + ' ' : '') + '【金額相違理由(領収書¥' + Number(receiptAmt).toLocaleString() + '→入力¥' + amount.toLocaleString() + '): ' + amtMismatchReason.trim() + '】';
     }
     var data = {
       report_id: reportId, expense_date: expDate, category: cat,
@@ -760,6 +771,17 @@ export default function ExpensePage() {
             </div>
             <div className="form-group"><label className="form-label">金額（円）</label><input className="form-input" type="number" value={amt} onChange={function(e){setAmt(e.target.value);}} placeholder="0" /></div>
           </div>
+          {receiptAmt && amt && String(Math.round(Number(amt))) !== receiptAmt && (
+            <div className="no-receipt-form" style={{marginTop:'8px'}}>
+              <div className="no-receipt-header">
+                <span className="no-receipt-badge">⚠️ 領収書金額（¥{Number(receiptAmt).toLocaleString()}）と入力金額（¥{Number(amt).toLocaleString()}）が異なります</span>
+              </div>
+              <div className="form-group" style={{marginTop:'8px'}}>
+                <label className="form-label">金額が異なる理由（必須）</label>
+                <input className="form-input" value={amtMismatchReason} onChange={function(e){setAmtMismatchReason(e.target.value);}} placeholder="例: 割り勘のため半額を申請" />
+              </div>
+            </div>
+          )}
           {cat==='旅費交通費'&&(<div className="expense-form-grid" style={{marginTop:'8px'}}>
             <div className="form-group"><label className="form-label">出発地</label><input className="form-input" value={tFrom} onChange={function(e){setTFrom(e.target.value);}} /></div>
             <div className="form-group"><label className="form-label">到着地</label><input className="form-input" value={tTo} onChange={function(e){setTTo(e.target.value);}} /></div>
