@@ -191,8 +191,8 @@ export default function InternPage() {
           <h3 className="card-title">{editId ? '日報を編集' : '📝 本日の日報'}</h3>
           <div className="expense-form-grid">
             <div className="form-group"><label className="form-label">日付</label><input className="form-input" type="date" value={rDate} onChange={function(e){setRDate(e.target.value);}} /></div>
-            <div className="form-group"><label className="form-label">勤務開始時刻</label><input className="form-input" type="time" value={startT} onChange={function(e){setStartT(e.target.value);}} /></div>
-            <div className="form-group"><label className="form-label">勤務終了時刻</label><input className="form-input" type="time" value={endT} onChange={function(e){setEndT(e.target.value);}} /></div>
+            <div className="form-group"><label className="form-label">勤務開始時刻</label><input className="form-input" type="time" step="600" value={startT} onChange={function(e){setStartT(e.target.value);}} /></div>
+            <div className="form-group"><label className="form-label">勤務終了時刻</label><input className="form-input" type="time" step="600" value={endT} onChange={function(e){setEndT(e.target.value);}} /></div>
           </div>
           <div className="expense-form-grid" style={{marginTop:'8px',gridTemplateColumns:'1fr 1fr'}}>
             <div className="form-group"><label className="form-label">中抜け時間（分）</label><input className="form-input" type="number" value={brk} onChange={function(e){setBrk(e.target.value);}} placeholder="0" /></div>

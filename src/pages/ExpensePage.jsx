@@ -119,6 +119,10 @@ export default function ExpensePage() {
   var _invoiceNum = useState(''), invoiceNum = _invoiceNum[0], setInvoiceNum = _invoiceNum[1];
   var _noReceiptReason = useState(''), noReceiptReason = _noReceiptReason[0], setNoReceiptReason = _noReceiptReason[1];
   var _noReceiptMode = useState(false), noReceiptMode = _noReceiptMode[0], setNoReceiptMode = _noReceiptMode[1];
+  var _noReceiptApproved = useState(false), noReceiptApproved = _noReceiptApproved[0], setNoReceiptApproved = _noReceiptApproved[1];
+  var _noInvoiceMode = useState(false), noInvoiceMode = _noInvoiceMode[0], setNoInvoiceMode = _noInvoiceMode[1];
+  var _noInvoiceApproved = useState(false), noInvoiceApproved = _noInvoiceApproved[0], setNoInvoiceApproved = _noInvoiceApproved[1];
+  var _purchaseApproved = useState(false), purchaseApproved = _purchaseApproved[0], setPurchaseApproved = _purchaseApproved[1];
   // 交通費フォーム
   var _showTransport = useState(false), showTransport = _showTransport[0], setShowTransport = _showTransport[1];
   var _tMeth = useState('電車'), tMeth = _tMeth[0], setTMeth = _tMeth[1];
@@ -200,7 +204,8 @@ export default function ExpensePage() {
     setExpDate(''); setCat('その他'); setAmt(''); setDesc('');
     setTFrom(''); setTTo(''); setTMethod(''); setBookTitle(''); setTripType('片道');
     setReceiptData(''); setReceiptName(''); setInvoiceNum('');
-    setNoReceiptReason(''); setNoReceiptMode(false);
+    setNoReceiptReason(''); setNoReceiptMode(false); setNoReceiptApproved(false);
+    setNoInvoiceMode(false); setNoInvoiceApproved(false); setPurchaseApproved(false);
     setEditId(null); setShowForm(false);
     if (fileRef.current) fileRef.current.value = '';
   }
@@ -276,21 +281,42 @@ export default function ExpensePage() {
 
   function handleSave() {
     if (!expDate || !amt) { flash('日付と金額は必須です'); return; }
+    var amount = Math.round(Number(amt)) || 0;
     // 旅費交通費で発着点必須（電車・バス以外）
     if (cat === '旅費交通費' && tMethod && TRANSPORT_METHODS.indexOf(tMethod) < 0) {
       if (!tFrom || !tTo) { flash('旅費交通費の発着点は必須です'); return; }
     }
-    // 領収書必須チェック（その他経費フォームからの登録）
+    // 領収書必須チェック
     if (!receiptData && !noReceiptMode) { flash('領収書のアップロードは必須です。領収書がない場合は「領収書なしで申告」を選択してください'); return; }
     if (!receiptData && noReceiptMode && !noReceiptReason.trim()) { flash('領収書なしの理由を入力してください'); return; }
+    if (!receiptData && noReceiptMode && !noReceiptApproved) { flash('了承を得てから登録してください'); return; }
+    // インボイス番号チェック
+    if (receiptData && !invoiceNum && !noInvoiceMode) { flash('インボイス番号を入力してください。番号がない場合は「インボイス番号なしで申告」を選択してください'); return; }
+    if (receiptData && !invoiceNum && noInvoiceMode && !noInvoiceApproved) { flash('了承を得てから登録してください'); return; }
+    // 3,000円以上は購買申請確認
+    if (amount >= 3000 && !purchaseApproved) { flash('承認を得てから登録してください'); return; }
+    // 予約系経費: 利用月以降の申請チェック
+    if (cat === '旅費交通費' && tMethod && TRANSPORT_METHODS.indexOf(tMethod) < 0) {
+      var expDt = new Date(expDate);
+      var expM = expDt.getFullYear() * 12 + expDt.getMonth();
+      var repM = year * 12 + (month - 1);
+      if (repM < expM) {
+        // レポート月が経費日付の月より前の場合はエラー（まだ利用していない）
+        flash('予約系経費は利用月以降に申請してください（経費日付: ' + expDate + '）');
+        return;
+      }
+    }
     setSaving(true);
     var descWithReason = desc;
     if (!receiptData && noReceiptMode && noReceiptReason.trim()) {
       descWithReason = (desc ? desc + ' ' : '') + '【領収書なし理由: ' + noReceiptReason.trim() + '】';
     }
+    if (receiptData && !invoiceNum && noInvoiceMode) {
+      descWithReason = (descWithReason ? descWithReason + ' ' : '') + '【インボイス番号なし: 責任者了承済】';
+    }
     var data = {
       report_id: reportId, expense_date: expDate, category: cat,
-      amount: Math.round(Number(amt)) || 0, description: descWithReason,
+      amount: amount, description: descWithReason,
       travel_from: tFrom, travel_to: tTo, travel_method: tMethod,
       book_title: bookTitle, trip_type: tripType,
       receipt_data: receiptData, receipt_filename: receiptName,
@@ -713,6 +739,14 @@ export default function ExpensePage() {
                     <label className="form-label">領収書がない理由（必須）</label>
                     <input className="form-input" value={noReceiptReason} onChange={function(e){setNoReceiptReason(e.target.value);}} placeholder="例: 自販機での購入のため領収書なし" />
                   </div>
+                  <div className="approval-check" style={{marginTop:'8px'}}>
+                    <label className="approval-label">責任者からの了承を得ていますか？</label>
+                    <div className="approval-btns">
+                      <button className={'approval-btn'+(noReceiptApproved?' approval-yes':'')} onClick={function(){setNoReceiptApproved(true);}}>はい</button>
+                      <button className={'approval-btn'+(!noReceiptApproved?' approval-no':'')} onClick={function(){setNoReceiptApproved(false);}}>いいえ</button>
+                    </div>
+                    {!noReceiptApproved && <span className="approval-warn">了承を得てから登録してください</span>}
+                  </div>
                 </div>
               )}
             </div>
@@ -742,8 +776,41 @@ export default function ExpensePage() {
               <div className="form-group">
                 <label className="form-label">インボイス番号（T+13桁）</label>
                 <input className="form-input" value={invoiceNum} onChange={function(e){setInvoiceNum(e.target.value);}} placeholder="T1234567890123" />
-                {receiptData && !invoiceNum && <div className="invoice-warning">⚠️ インボイス番号が未入力です</div>}
+                {receiptData && !invoiceNum && !noInvoiceMode && <div className="invoice-warning">⚠️ インボイス番号が未入力です</div>}
               </div>
+              {!invoiceNum && (
+                <div className="no-receipt-section">
+                  {!noInvoiceMode ? (
+                    <button className="btn-ghost" style={{fontSize:'11px',color:'#94a3b8'}} onClick={function(){setNoInvoiceMode(true);}}>インボイス番号がない場合はこちら（例外申告）</button>
+                  ) : (
+                    <div className="no-receipt-form">
+                      <div className="no-receipt-header">
+                        <span className="no-receipt-badge">⚠️ インボイス番号なしで申告</span>
+                        <button className="btn-ghost" style={{fontSize:'11px'}} onClick={function(){setNoInvoiceMode(false);setNoInvoiceApproved(false);}}>取り消し</button>
+                      </div>
+                      <div className="approval-check" style={{marginTop:'8px'}}>
+                        <label className="approval-label">責任者からの了承を得ていますか？</label>
+                        <div className="approval-btns">
+                          <button className={'approval-btn'+(noInvoiceApproved?' approval-yes':'')} onClick={function(){setNoInvoiceApproved(true);}}>はい</button>
+                          <button className={'approval-btn'+(!noInvoiceApproved?' approval-no':'')} onClick={function(){setNoInvoiceApproved(false);}}>いいえ</button>
+                        </div>
+                        {!noInvoiceApproved && <span className="approval-warn">了承を得てから登録してください</span>}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+          {/* 3,000円以上の購買申請確認 */}
+          {amt && Number(amt) >= 3000 && (
+            <div className="approval-check" style={{marginTop:'12px'}}>
+              <label className="approval-label">購買申請承認済みですか？</label>
+              <div className="approval-btns">
+                <button className={'approval-btn'+(purchaseApproved?' approval-yes':'')} onClick={function(){setPurchaseApproved(true);}}>はい</button>
+                <button className={'approval-btn'+(!purchaseApproved?' approval-no':'')} onClick={function(){setPurchaseApproved(false);}}>いいえ</button>
+              </div>
+              {!purchaseApproved && <span className="approval-warn">承認を得てから登録してください</span>}
             </div>
           )}
           <div style={{display:'flex',gap:'8px',marginTop:'16px'}}>

@@ -19,7 +19,7 @@ function getBreakWarning(r) {
   if (r.deduction) { var dp = r.deduction.split(':'); dedMin = parseInt(dp[0]) * 60 + parseInt(dp[1] || 0); }
   var sp = r.start_time.split(':'), ep = r.end_time.split(':');
   var grossMin = (parseInt(ep[0]) * 60 + parseInt(ep[1])) - (parseInt(sp[0]) * 60 + parseInt(sp[1]));
-  if (grossMin > 360 && dedMin === 0) return '⚠️ 休憩なし';
+  if (grossMin > 360 && dedMin < 45) return '⚠️ 6h超: 45分以上の休憩必須';
   return '';
 }
 
@@ -44,13 +44,26 @@ function countLeave(rows) {
   return { paid: paid, halfAm: halfAm, halfPm: halfPm, absent: absent };
 }
 
-export default function AttendanceTable({ rows, onCellChange, readOnly = false }) {
+export default function AttendanceTable({ rows, onCellChange, readOnly = false, defaults }) {
+  // defaults: { start_time, end_time, deduction, work_content }
+  var defs = defaults || {};
+  var defSt = defs.start_time || '09:00';
+  var defEt = defs.end_time || '18:00';
+  var defDd = defs.deduction || '01:00';
+  var defCt = defs.work_content || '通常勤務';
+
+  // デフォルト開始・終了を分に変換
+  var defStMin = parseInt(defSt.split(':')[0]) * 60 + parseInt(defSt.split(':')[1]);
+  var defEtMin = parseInt(defEt.split(':')[0]) * 60 + parseInt(defEt.split(':')[1]);
+  // 前半4時間・後半4時間
+  var halfAmEnd = defStMin + 240; // 午前半休: defSt〜defSt+4h
+  var halfPmStart = defEtMin - 240; // 午後半休: defEt-4h〜defEt
+  function minToTime(m) { return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0'); }
+
   const handleChange = (index, field, value) => {
     if (readOnly || !onCellChange) return;
     const updated = { ...rows[index], [field]: value };
-    if (['start_time', 'end_time', 'deduction'].includes(field)) {
-      updated.work_hours = calcWorkHours(updated.start_time, updated.end_time, updated.deduction);
-    }
+
     if (field === 'work_type') {
       if (value === '有給' || value === '欠勤') {
         updated.start_time = '';
@@ -58,8 +71,34 @@ export default function AttendanceTable({ rows, onCellChange, readOnly = false }
         updated.deduction = '';
         updated.work_hours = '';
         updated.work_content = value;
+      } else if (value === '半休(午前)') {
+        // 午前半休: デフォルトの前半4時間が休み → 後半4時間勤務
+        updated.start_time = minToTime(halfPmStart);
+        updated.end_time = defEt;
+        updated.deduction = '';
+        updated.work_hours = calcWorkHours(updated.start_time, updated.end_time, '');
+        updated.work_content = '半休(午前)';
+      } else if (value === '半休(午後)') {
+        // 午後半休: デフォルトの後半4時間が休み → 前半4時間勤務
+        updated.start_time = defSt;
+        updated.end_time = minToTime(halfAmEnd);
+        updated.deduction = '';
+        updated.work_hours = calcWorkHours(updated.start_time, updated.end_time, '');
+        updated.work_content = '半休(午後)';
+      } else {
+        // 通常に戻す
+        updated.start_time = defSt;
+        updated.end_time = defEt;
+        updated.deduction = defDd;
+        updated.work_hours = calcWorkHours(defSt, defEt, defDd);
+        updated.work_content = defCt;
       }
     }
+
+    if (['start_time', 'end_time', 'deduction'].includes(field)) {
+      updated.work_hours = calcWorkHours(updated.start_time, updated.end_time, updated.deduction);
+    }
+
     onCellChange(index, updated);
   };
 
@@ -152,11 +191,15 @@ export default function AttendanceTable({ rows, onCellChange, readOnly = false }
                 <td className="cell-center cell-overtime">{ot}</td>
 
                 {readOnly ? (
-                  <td className="cell-content-ro">{r.work_content}</td>
+                  <td className="cell-content-ro">
+                    {r.work_content}
+                    {r.admin_comment && <div className="admin-comment-display">💬 {r.admin_comment}</div>}
+                  </td>
                 ) : (
                   <td className="cell-input">
                     <input className="cell-text" value={r.work_content} disabled={isLeave}
                       onChange={e => handleChange(i, 'work_content', e.target.value)} />
+                    {r.admin_comment && <div className="admin-comment-display">💬 {r.admin_comment}</div>}
                   </td>
                 )}
               </tr>

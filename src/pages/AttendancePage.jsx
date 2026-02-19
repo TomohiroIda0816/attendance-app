@@ -115,6 +115,21 @@ export default function AttendancePage() {
 
   function handleSubmit() {
     if (!reportId) return;
+    // 休憩バリデーション: 6h超で45分未満の休憩がある行をチェック
+    var errors = [];
+    rows.forEach(function(r) {
+      if (!r.start_time || !r.end_time) return;
+      if (r.work_type === '有給' || r.work_type === '欠勤') return;
+      var sp = r.start_time.split(':'), ep = r.end_time.split(':');
+      var grossMin = (parseInt(ep[0]) * 60 + parseInt(ep[1])) - (parseInt(sp[0]) * 60 + parseInt(sp[1]));
+      var dedMin = 0;
+      if (r.deduction) { var dp = r.deduction.split(':'); dedMin = parseInt(dp[0]) * 60 + parseInt(dp[1] || 0); }
+      if (grossMin > 360 && dedMin < 45) errors.push(r.day + '日');
+    });
+    if (errors.length > 0) {
+      flash(errors.join(', ') + ' : 6時間超勤務で45分以上の休憩が必要です');
+      return;
+    }
     setSaving(true);
     supabase.from('monthly_reports')
       .update({ status: '申請済', submitted_at: new Date().toISOString() })
@@ -195,7 +210,7 @@ export default function AttendancePage() {
           )}
         </div>
       </div>
-      <AttendanceTable rows={rows} onCellChange={onCellChange} readOnly={status === '承認済'} />
+      <AttendanceTable rows={rows} onCellChange={onCellChange} readOnly={status === '承認済'} defaults={defaults} />
     </div>
   );
 }

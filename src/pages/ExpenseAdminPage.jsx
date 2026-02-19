@@ -163,7 +163,9 @@ export default function ExpenseAdminPage() {
                 <th style={{textAlign:'center',width:'90px'}}>費目</th>
                 <th style={{textAlign:'left'}}>内容</th>
                 <th style={{textAlign:'center',width:'30px'}}>📎</th>
+                <th style={{textAlign:'center',width:'130px'}}>インボイス</th>
                 <th style={{textAlign:'right',width:'100px'}}>金額</th>
+                <th style={{textAlign:'center',width:'60px'}}>操作</th>
               </tr></thead>
               <tbody>
                 {ent.map(function(e){
@@ -172,16 +174,24 @@ export default function ExpenseAdminPage() {
                       <td style={{textAlign:'center'}}>{fmtDate(e.expense_date)}</td>
                       <td style={{textAlign:'center'}}><span className={'expense-cat expense-cat-'+e.category}>{e.category}</span></td>
                       <td style={{textAlign:'left'}}>{getDetail(e)}</td>
-                      <td style={{textAlign:'center'}}>{e.receipt_data ? '📎' : ''}</td>
+                      <td style={{textAlign:'center'}}>{e.receipt_data ? (e.invoice_number ? '📎' : '⚠️') : ''}</td>
+                      <td style={{textAlign:'center',fontSize:'11px',fontFamily:'var(--mono)'}}>{e.invoice_number || (e.receipt_data ? <span className="invoice-warning-inline">未登録</span> : '')}</td>
                       <td style={{textAlign:'right',fontFamily:'var(--mono)',fontWeight:600}}>¥{e.amount.toLocaleString()}</td>
+                      <td style={{textAlign:'center'}} onClick={function(ev){ev.stopPropagation();}}>
+                        <button className="btn-small btn-small-reject" onClick={function(){
+                          if(!confirm('この経費を削除しますか？'))return;
+                          supabase.from('expense_entries').delete().eq('id',e.id).then(function(){flash('削除しました');viewDetail(u);});
+                        }}>削除</button>
+                      </td>
                     </tr>
                   );
                 })}
               </tbody>
               <tfoot>
                 <tr style={{background:'var(--bg)'}}>
-                  <td colSpan={4} style={{textAlign:'right',fontWeight:700,padding:'10px 8px'}}>月合計</td>
+                  <td colSpan={5} style={{textAlign:'right',fontWeight:700,padding:'10px 8px'}}>月合計</td>
                   <td style={{textAlign:'right',fontFamily:'var(--mono)',fontWeight:700,fontSize:'14px',padding:'10px 8px'}}>¥{grandTotal.toLocaleString()}</td>
+                  <td></td>
                 </tr>
               </tfoot>
             </table>
