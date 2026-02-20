@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from './components/AuthProvider';
+import logoImg from './assets/logo.png';
 import AuthPage from './pages/AuthPage';
 import AttendancePage from './pages/AttendancePage';
 import SettingsPage from './pages/SettingsPage';
@@ -33,7 +34,7 @@ export default function App() {
     return (
       <div className="app-container">
         <header className="app-header">
-          <div className="header-left"><button className="btn-home" onClick={function(){setModule('home');}}>◀ ホーム</button><img src="/logo.png" alt="ロゴ" className="header-logo-img" /><span className="header-brand">アカウント設定</span></div>
+          <div className="header-left"><button className="btn-home" onClick={function(){setModule('home');}}>◀ ホーム</button><img src={logoImg} alt="ロゴ" className="header-logo-img" /><span className="header-brand">アカウント設定</span></div>
           <nav className="header-nav"><button className="nav-logout" onClick={function(){auth.signOut();}}>ログアウト</button></nav>
         </header>
         <main className="app-main"><ProfilePage /></main>
@@ -46,7 +47,7 @@ export default function App() {
     return (
       <div className="app-container">
         <header className="app-header">
-          <div className="header-left"><button className="btn-home" onClick={function(){setModule('home');}}>◀ ホーム</button><img src="/logo.png" alt="ロゴ" className="header-logo-img" /><span className="header-brand">日報・勤怠</span></div>
+          <div className="header-left"><button className="btn-home" onClick={function(){setModule('home');}}>◀ ホーム</button><img src={logoImg} alt="ロゴ" className="header-logo-img" /><span className="header-brand">日報・勤怠</span></div>
           <nav className="header-nav">
             <button className="nav-btn" onClick={function(){setModule('profile');}}>👤</button>
             <button className="nav-logout" onClick={function(){auth.signOut();}}>ログアウト</button>
@@ -62,7 +63,7 @@ export default function App() {
     return (
       <div className="app-container">
         <header className="app-header">
-          <div className="header-left"><button className="btn-home" onClick={function(){setModule('home');}}>◀ ホーム</button><img src="/logo.png" alt="ロゴ" className="header-logo-img" /><span className="header-brand">インターン日報（管理者）</span></div>
+          <div className="header-left"><button className="btn-home" onClick={function(){setModule('home');}}>◀ ホーム</button><img src={logoImg} alt="ロゴ" className="header-logo-img" /><span className="header-brand">インターン日報（管理者）</span></div>
           <nav className="header-nav">
             <button className="nav-btn" onClick={function(){setModule('profile');}}>👤</button>
             <button className="nav-logout" onClick={function(){auth.signOut();}}>ログアウト</button>
@@ -78,7 +79,7 @@ export default function App() {
     return (
       <div className="app-container">
         <header className="app-header">
-          <div className="header-left"><img src="/logo.png" alt="ロゴ" className="header-logo-img" /><span className="header-brand">業務管理システム</span></div>
+          <div className="header-left"><img src={logoImg} alt="ロゴ" className="header-logo-img" /><span className="header-brand">業務管理システム</span></div>
           <nav className="header-nav">
             <button className="nav-btn" onClick={function(){setModule('profile');}}><span className="nav-user-icon">👤</span> {auth.profile?auth.profile.full_name:''}</button>
             <button className="nav-logout" onClick={function(){auth.signOut();}}>ログアウト</button>
@@ -112,7 +113,7 @@ export default function App() {
     return (
       <div className="app-container">
         <header className="app-header">
-          <div className="header-left"><button className="btn-home" onClick={function(){setModule('home');}}>◀ ホーム</button><img src="/logo.png" alt="ロゴ" className="header-logo-img" /><span className="header-brand">出張管理</span></div>
+          <div className="header-left"><button className="btn-home" onClick={function(){setModule('home');}}>◀ ホーム</button><img src={logoImg} alt="ロゴ" className="header-logo-img" /><span className="header-brand">出張管理</span></div>
           <nav className="header-nav">
             <button className={tripView==='trips'?'nav-btn nav-active':'nav-btn'} onClick={function(){setTripView('trips');}}>出張一覧</button>
             {auth.isAdmin&&<button className={tripView==='admin'?'nav-btn nav-active':'nav-btn'} onClick={function(){setTripView('admin');}}>管理者</button>}
@@ -133,7 +134,7 @@ export default function App() {
     return (
       <div className="app-container">
         <header className="app-header">
-          <div className="header-left"><button className="btn-home" onClick={function(){setModule('home');}}>◀ ホーム</button><img src="/logo.png" alt="ロゴ" className="header-logo-img" /><span className="header-brand">経費管理</span></div>
+          <div className="header-left"><button className="btn-home" onClick={function(){setModule('home');}}>◀ ホーム</button><img src={logoImg} alt="ロゴ" className="header-logo-img" /><span className="header-brand">経費管理</span></div>
           <nav className="header-nav">
             <button className={expView==='expenses'?'nav-btn nav-active':'nav-btn'} onClick={function(){setExpView('expenses');}}>経費一覧</button>
             {auth.isAdmin&&<button className={expView==='admin'?'nav-btn nav-active':'nav-btn'} onClick={function(){setExpView('admin');}}>管理者</button>}
@@ -153,7 +154,7 @@ export default function App() {
   return (
     <div className="app-container">
       <header className="app-header">
-        <div className="header-left"><button className="btn-home" onClick={function(){setModule('home');}}>◀ ホーム</button><img src="/logo.png" alt="ロゴ" className="header-logo-img" /><span className="header-brand">勤怠管理</span></div>
+        <div className="header-left"><button className="btn-home" onClick={function(){setModule('home');}}>◀ ホーム</button><img src={logoImg} alt="ロゴ" className="header-logo-img" /><span className="header-brand">勤怠管理</span></div>
         <nav className="header-nav">
           <button className={view==='attendance'?'nav-btn nav-active':'nav-btn'} onClick={function(){setView('attendance');}}>勤怠入力</button>
           <button className={view==='months'?'nav-btn nav-active':'nav-btn'} onClick={function(){setView('months');}}>月別一覧</button>
