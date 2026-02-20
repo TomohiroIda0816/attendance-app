@@ -17,11 +17,12 @@ export default function AdminPage() {
   var _editRows = useState([]), editRows = _editRows[0], setEditRows = _editRows[1];
   var _showReject = useState(false), showReject = _showReject[0], setShowReject = _showReject[1];
   var _comments = useState({}), comments = _comments[0], setComments = _comments[1];
+  var _transportEntries = useState([]), transportEntries = _transportEntries[0], setTransportEntries = _transportEntries[1];
 
   function flash(msg) { setToast(msg); setTimeout(function() { setToast(''); }, 2500); }
 
   function loadMonthData() {
-    setLoading(true); setDetailView(null); setEditing(false); setShowReject(false);
+    setLoading(true); setDetailView(null); setEditing(false); setShowReject(false); setTransportEntries([]);
     supabase.from('profiles').select('*').order('full_name')
       .then(function(profRes) {
         if (!profRes.data) { setUsers([]); setLoading(false); return; }
@@ -52,6 +53,24 @@ export default function AdminPage() {
         rows.forEach(function(r) { c[r.day] = r.admin_comment || ''; });
         setComments(c);
       });
+    // 交通費もロード
+    supabase.from('expense_monthly_reports').select('*')
+      .eq('user_id', u.id).eq('year', year).eq('month', month).single()
+      .then(function(res) {
+        if (res.data) {
+          supabase.from('expense_entries').select('*').eq('report_id', res.data.id).order('expense_date')
+            .then(function(eRes) {
+              var all = eRes.data || [];
+              var filtered = all.filter(function(e) {
+                return e.category === '旅費交通費' && (e.travel_method === '電車' || e.travel_method === 'バス');
+              });
+              setTransportEntries(filtered);
+            });
+        } else {
+          setTransportEntries([]);
+        }
+      })
+      .catch(function() { setTransportEntries([]); });
   }
 
   function updateStatus(reportId, newStatus) {
@@ -178,6 +197,43 @@ export default function AdminPage() {
         )}
 
         <AttendanceTable rows={displayRows} onCellChange={editing ? onAdminCellChange : null} readOnly={!editing} />
+
+        {/* 交通費セクション */}
+        {transportEntries.length > 0 && (
+          <div className="card" style={{ marginTop: '16px' }}>
+            <h3 className="card-title">🚃 交通費（電車・バス）</h3>
+            <table className="admin-table" style={{fontSize:'13px'}}>
+              <thead><tr>
+                <th style={{textAlign:'center',width:'80px'}}>日付</th>
+                <th style={{textAlign:'center',width:'60px'}}>手段</th>
+                <th style={{textAlign:'left'}}>区間</th>
+                <th style={{textAlign:'center',width:'60px'}}>種別</th>
+                <th style={{textAlign:'right',width:'100px'}}>金額</th>
+              </tr></thead>
+              <tbody>
+                {transportEntries.map(function(e){
+                  var dt = e.expense_date ? new Date(e.expense_date) : null;
+                  var dateStr = dt ? dt.getFullYear()+'/'+String(dt.getMonth()+1).padStart(2,'0')+'/'+String(dt.getDate()).padStart(2,'0') : '';
+                  return (
+                    <tr key={e.id} className="admin-table-row">
+                      <td style={{textAlign:'center'}}>{dateStr}</td>
+                      <td style={{textAlign:'center'}}>{e.travel_method}</td>
+                      <td style={{textAlign:'left'}}>{(e.travel_from||'')+'→'+(e.travel_to||'')}</td>
+                      <td style={{textAlign:'center'}}>{e.trip_type}</td>
+                      <td style={{textAlign:'right',fontFamily:'var(--mono)',fontWeight:600}}>¥{e.amount.toLocaleString()}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr style={{background:'var(--bg)'}}>
+                  <td colSpan={4} style={{textAlign:'right',fontWeight:700,padding:'10px 8px'}}>交通費合計</td>
+                  <td style={{textAlign:'right',fontFamily:'var(--mono)',fontWeight:700,fontSize:'14px',padding:'10px 8px'}}>¥{transportEntries.reduce(function(s,e){return s+e.amount;},0).toLocaleString()}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        )}
       </div>
     );
   }
