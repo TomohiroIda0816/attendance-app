@@ -42,7 +42,7 @@ export default function AuthPage() {
     <div className="auth-bg">
       <div className="auth-card">
         <div className="auth-logo">
-          <div className="auth-icon">📋</div>
+          <img src="/logo.png" alt="ロゴ" className="auth-logo-img" />
           <h1 className="auth-title">業務管理システム</h1>
           <p className="auth-subtitle">BUSINESS MANAGEMENT</p>
         </div>

@@ -101,6 +101,7 @@ body {
   animation: slideUp 0.4s ease;
 }
 .auth-logo { text-align: center; margin-bottom: 32px; }
+.auth-logo-img { width: 72px; height: 72px; object-fit: contain; margin-bottom: 12px; }
 .auth-icon { font-size: 40px; margin-bottom: 8px; }
 .auth-title {
   font-size: 22px; font-weight: 800; color: var(--text);
@@ -231,6 +232,7 @@ body {
   display: flex; align-items: center; gap: 10px;
 }
 .header-logo { font-size: 22px; }
+.header-logo-img { width: 28px; height: 28px; object-fit: contain; }
 .header-brand {
   font-size: 16px; font-weight: 700;
   color: var(--text); letter-spacing: 0.5px;
