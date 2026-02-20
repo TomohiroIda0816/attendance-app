@@ -70,7 +70,13 @@ export default function ExpenseAdminPage() {
   function viewDetail(u) {
     if (!u.report) return;
     supabase.from('expense_entries').select('*').eq('report_id',u.report.id).order('expense_date')
-      .then(function(res){ setDetail({user:u, entries:res.data||[], report:u.report}); })
+      .then(function(res){
+        var all = res.data || [];
+        var filtered = all.filter(function(e) {
+          return !(e.category === '旅費交通費' && (e.travel_method === '電車' || e.travel_method === 'バス'));
+        });
+        setDetail({user:u, entries:filtered, report:u.report});
+      })
       .catch(function(){});
   }
 
