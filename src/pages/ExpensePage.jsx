@@ -322,9 +322,6 @@ export default function ExpensePage() {
     if (receiptData && !invoiceNum && noInvoiceMode) {
       descWithReason = (descWithReason ? descWithReason + ' ' : '') + '【インボイス番号なし: 責任者了承済】';
     }
-    if (receiptAmt && Math.round(Number(amt)) !== Math.round(Number(receiptAmt)) && amtMismatchReason.trim()) {
-      descWithReason = (descWithReason ? descWithReason + ' ' : '') + '【金額相違理由(領収書¥' + Number(receiptAmt).toLocaleString() + '→入力¥' + amount.toLocaleString() + '): ' + amtMismatchReason.trim() + '】';
-    }
     var data = {
       report_id: reportId, expense_date: expDate, category: cat,
       amount: amount, description: descWithReason,
@@ -332,6 +329,8 @@ export default function ExpensePage() {
       book_title: bookTitle, trip_type: tripType,
       receipt_data: receiptData, receipt_filename: receiptName,
       invoice_number: invoiceNum,
+      receipt_amount: receiptAmt ? Math.round(Number(receiptAmt)) : 0,
+      amount_mismatch_reason: amtMismatchReason || '',
     };
     var p = editId ? supabase.from('expense_entries').update(data).eq('id', editId)
       : supabase.from('expense_entries').insert(data);
@@ -419,6 +418,8 @@ export default function ExpensePage() {
       setTripType(e.trip_type||'片道');
       setReceiptData(e.receipt_data||''); setReceiptName(e.receipt_filename||'');
       setInvoiceNum(e.invoice_number||'');
+      setReceiptAmt(e.receipt_amount ? String(e.receipt_amount) : '');
+      setAmtMismatchReason(e.amount_mismatch_reason || '');
       setEditId(e.id); setShowForm(true); setShowTransport(false);
     }
     setDetailEntry(null);
@@ -522,6 +523,15 @@ export default function ExpensePage() {
             <div className="trip-detail-item"><span className="trip-detail-label">日付</span><span className="trip-detail-value">{fmtDate(de.expense_date)}</span></div>
             <div className="trip-detail-item"><span className="trip-detail-label">費目</span><span className="trip-detail-value"><span className={'expense-cat expense-cat-'+de.category}>{de.category}</span></span></div>
             <div className="trip-detail-item"><span className="trip-detail-label">金額</span><span className="trip-detail-value">¥{de.amount.toLocaleString()}</span></div>
+            {de.receipt_amount > 0 && (<div className="trip-detail-item"><span className="trip-detail-label">領収書金額</span><span className="trip-detail-value">¥{de.receipt_amount.toLocaleString()}</span></div>)}
+            {de.receipt_amount > 0 && de.amount !== de.receipt_amount && (
+              <div className="trip-detail-item" style={{gridColumn:'1/-1'}}>
+                <div className="amt-mismatch-box">
+                  <div className="amt-mismatch-header">⚠️ 領収書金額（¥{de.receipt_amount.toLocaleString()}）と申請金額（¥{de.amount.toLocaleString()}）が異なります</div>
+                  {de.amount_mismatch_reason && <div style={{marginTop:'6px',fontSize:'13px'}}>理由: {de.amount_mismatch_reason}</div>}
+                </div>
+              </div>
+            )}
             {de.category==='旅費交通費'&&de.travel_from&&(<div className="trip-detail-item"><span className="trip-detail-label">区間</span><span className="trip-detail-value">{de.travel_from} → {de.travel_to}</span></div>)}
             {de.category==='旅費交通費'&&de.travel_method&&(<div className="trip-detail-item"><span className="trip-detail-label">交通手段</span><span className="trip-detail-value">{de.travel_method}</span></div>)}
             {de.category==='旅費交通費'&&de.trip_type&&(<div className="trip-detail-item"><span className="trip-detail-label">片道/往復</span><span className="trip-detail-value">{de.trip_type}</span></div>)}

@@ -106,6 +106,15 @@ export default function ExpenseAdminPage() {
             <div className="trip-detail-item"><span className="trip-detail-label">日付</span><span className="trip-detail-value">{fmtDate(receiptView.expense_date)}</span></div>
             <div className="trip-detail-item"><span className="trip-detail-label">費目</span><span className="trip-detail-value"><span className={'expense-cat expense-cat-'+receiptView.category}>{receiptView.category}</span></span></div>
             <div className="trip-detail-item"><span className="trip-detail-label">金額</span><span className="trip-detail-value">¥{receiptView.amount.toLocaleString()}</span></div>
+            {receiptView.receipt_amount > 0 && (<div className="trip-detail-item"><span className="trip-detail-label">領収書金額</span><span className="trip-detail-value">¥{receiptView.receipt_amount.toLocaleString()}</span></div>)}
+            {receiptView.receipt_amount > 0 && receiptView.amount !== receiptView.receipt_amount && (
+              <div className="trip-detail-item" style={{gridColumn:'1/-1'}}>
+                <div className="amt-mismatch-box">
+                  <div className="amt-mismatch-header">⚠️ 領収書金額（¥{receiptView.receipt_amount.toLocaleString()}）と申請金額（¥{receiptView.amount.toLocaleString()}）が異なります</div>
+                  {receiptView.amount_mismatch_reason && <div style={{marginTop:'6px',fontSize:'13px'}}>理由: {receiptView.amount_mismatch_reason}</div>}
+                </div>
+              </div>
+            )}
             <div className="trip-detail-item"><span className="trip-detail-label">内容</span><span className="trip-detail-value">{getDetail(receiptView)}</span></div>
             {receiptView.category==='旅費交通費'&&receiptView.travel_from&&(<div className="trip-detail-item"><span className="trip-detail-label">区間</span><span className="trip-detail-value">{receiptView.travel_from} → {receiptView.travel_to}</span></div>)}
             {receiptView.category==='旅費交通費'&&receiptView.travel_method&&(<div className="trip-detail-item"><span className="trip-detail-label">交通手段</span><span className="trip-detail-value">{receiptView.travel_method}</span></div>)}
