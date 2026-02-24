@@ -105,6 +105,7 @@ export default function TripAdminPage() {
                 <th style={{textAlign:'left'}}>出張先</th>
                 <th style={{textAlign:'center'}}>出発日</th>
                 <th style={{textAlign:'center'}}>帰着日</th>
+                <th style={{textAlign:'center'}}>到着</th>
                 <th style={{textAlign:'center'}}>泊数</th>
                 <th style={{textAlign:'right'}}>昼食代</th>
                 <th style={{textAlign:'right'}}>夕食代</th>
@@ -117,6 +118,7 @@ export default function TripAdminPage() {
                       <td style={{fontWeight:600}}>{e.destination}</td>
                       <td style={{textAlign:'center'}}>{fmtDate(e.departure_date)}</td>
                       <td style={{textAlign:'center'}}>{fmtDate(e.return_date)}</td>
+                      <td style={{textAlign:'center'}}>{e.arrival_time || '午前'}着</td>
                       <td style={{textAlign:'center'}}>{e.nights}泊</td>
                       <td style={{textAlign:'right',fontFamily:'var(--mono)'}}>¥{e.lunch_allowance.toLocaleString()}</td>
                       <td style={{textAlign:'right',fontFamily:'var(--mono)'}}>¥{e.dinner_allowance.toLocaleString()}</td>
@@ -127,7 +129,7 @@ export default function TripAdminPage() {
               </tbody>
               <tfoot>
                 <tr style={{background:'var(--bg)'}}>
-                  <td colSpan={6} style={{textAlign:'right',fontWeight:700,padding:'10px 8px'}}>月合計</td>
+                  <td colSpan={7} style={{textAlign:'right',fontWeight:700,padding:'10px 8px'}}>月合計</td>
                   <td style={{textAlign:'right',fontFamily:'var(--mono)',fontWeight:700,fontSize:'14px',padding:'10px 8px'}}>¥{grandTotal.toLocaleString()}</td>
                 </tr>
               </tfoot>
