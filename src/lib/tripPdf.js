@@ -61,6 +61,7 @@ export function openTripPDF(entries, year, month, userName, status) {
     html += '<th>出張先</th>';
     html += '<th style="width:80px">出発日</th>';
     html += '<th style="width:80px">帰着日</th>';
+    html += '<th style="width:50px">到着</th>';
     html += '<th style="width:40px">泊数</th>';
     html += '<th style="width:70px">昼食代</th>';
     html += '<th style="width:70px">夕食代</th>';
@@ -74,6 +75,7 @@ export function openTripPDF(entries, year, month, userName, status) {
       html += '<td class="left">' + e.destination + '</td>';
       html += '<td>' + fmtDate(e.departure_date) + '</td>';
       html += '<td>' + fmtDate(e.return_date) + '</td>';
+      html += '<td>' + (e.arrival_time || '午前') + '着</td>';
       html += '<td>' + e.nights + '泊</td>';
       html += '<td class="right">&yen;' + e.lunch_allowance.toLocaleString() + '</td>';
       html += '<td class="right">&yen;' + e.dinner_allowance.toLocaleString() + '</td>';

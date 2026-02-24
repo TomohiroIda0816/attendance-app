@@ -6,13 +6,15 @@ import { openTripPDF } from '../lib/tripPdf';
 var LUNCH = 1500;
 var DINNER = 2000;
 
-function calcAllowance(dep, ret) {
-  if (!dep || !ret) return { nights: 0, lunch: 0, dinner: 0, total: 0 };
+function calcAllowance(dep, ret, arrivalTime) {
+  if (!dep || !ret) return { nights: 0, lunchDays: 0, lunch: 0, dinner: 0, total: 0 };
   var d1 = new Date(dep), d2 = new Date(ret);
   var diff = Math.round((d2 - d1) / (1000 * 60 * 60 * 24));
   if (diff < 0) diff = 0;
   var nights = diff, days = nights + 1;
-  return { nights: nights, lunch: days * LUNCH, dinner: nights * DINNER, total: days * LUNCH + nights * DINNER };
+  var lunchDays = arrivalTime === '午後' ? days - 1 : days;
+  if (lunchDays < 0) lunchDays = 0;
+  return { nights: nights, lunchDays: lunchDays, lunch: lunchDays * LUNCH, dinner: nights * DINNER, total: lunchDays * LUNCH + nights * DINNER };
 }
 
 function fmtDate(d) {
@@ -39,6 +41,7 @@ export default function TripPage() {
   var _dep = useState(''), dep = _dep[0], setDep = _dep[1];
   var _ret = useState(''), ret = _ret[0], setRet = _ret[1];
   var _dest = useState(''), dest = _dest[0], setDest = _dest[1];
+  var _arrTime = useState('午前'), arrTime = _arrTime[0], setArrTime = _arrTime[1];
   var _saving = useState(false), saving = _saving[0], setSaving = _saving[1];
   var _t = useState(''), toast = _t[0], setToast = _t[1];
 
@@ -70,16 +73,16 @@ export default function TripPage() {
 
   useEffect(function() { loadData(); }, [auth.user, year, month]);
 
-  function resetForm() { setDep(''); setRet(''); setDest(''); setEditId(null); setShowForm(false); }
+  function resetForm() { setDep(''); setRet(''); setDest(''); setArrTime('午前'); setEditId(null); setShowForm(false); }
 
   function handleSave() {
     if (!dep || !ret || !dest.trim()) { flash('すべての項目を入力してください'); return; }
-    var a = calcAllowance(dep, ret);
+    var a = calcAllowance(dep, ret, arrTime);
     if (new Date(ret) < new Date(dep)) { flash('帰着日は出発日以降にしてください'); return; }
     setSaving(true);
     var data = {
       report_id: reportId, departure_date: dep, return_date: ret,
-      destination: dest.trim(), nights: a.nights,
+      destination: dest.trim(), nights: a.nights, arrival_time: arrTime,
       lunch_allowance: a.lunch, dinner_allowance: a.dinner, total_allowance: a.total,
     };
     var p = editId
@@ -92,7 +95,7 @@ export default function TripPage() {
 
   function handleEdit(e) {
     setDep(e.departure_date); setRet(e.return_date); setDest(e.destination);
-    setEditId(e.id); setShowForm(true);
+    setArrTime(e.arrival_time || '午前'); setEditId(e.id); setShowForm(true);
   }
 
   function handleDeleteEntry(id) {
@@ -125,7 +128,7 @@ export default function TripPage() {
   function prevMonth() { if (month===1){setMonth(12);setYear(year-1);}else{setMonth(month-1);} }
   function nextMonth() { if (month===12){setMonth(1);setYear(year+1);}else{setMonth(month+1);} }
 
-  var allow = calcAllowance(dep, ret);
+  var allow = calcAllowance(dep, ret, arrTime);
   var grandTotal = 0;
   entries.forEach(function(e) { grandTotal += e.total_allowance; });
   var isEditable = status === '下書き' || status === '差戻し';
@@ -179,12 +182,19 @@ export default function TripPage() {
               <label className="form-label">帰着日</label>
               <input className="form-input" type="date" value={ret} onChange={function(e){setRet(e.target.value);}} />
             </div>
+            <div className="form-group">
+              <label className="form-label">目的地への到着</label>
+              <select className="form-input" value={arrTime} onChange={function(e){setArrTime(e.target.value);}}>
+                <option value="午前">午前着</option>
+                <option value="午後">午後着</option>
+              </select>
+            </div>
           </div>
           {dep && ret && (
             <div className="trip-preview">
               <div className="trip-preview-row">
-                <span>{allow.nights}泊{allow.nights+1}日</span>
-                <span>昼食代: &yen;{allow.lunch.toLocaleString()}</span>
+                <span>{allow.nights}泊{allow.nights+1}日（{arrTime}着）</span>
+                <span>昼食代: &yen;{allow.lunch.toLocaleString()}{arrTime==='午後' ? '（1日目昼食なし）' : ''}</span>
                 <span>夕食代: &yen;{allow.dinner.toLocaleString()}</span>
                 <span className="trip-preview-total">合計: &yen;{allow.total.toLocaleString()}</span>
               </div>
@@ -208,6 +218,7 @@ export default function TripPage() {
                 <th style={{textAlign:'left'}}>出張先</th>
                 <th style={{textAlign:'center'}}>出発日</th>
                 <th style={{textAlign:'center'}}>帰着日</th>
+                <th style={{textAlign:'center'}}>到着</th>
                 <th style={{textAlign:'center'}}>泊数</th>
                 <th style={{textAlign:'right'}}>昼食代</th>
                 <th style={{textAlign:'right'}}>夕食代</th>
@@ -222,6 +233,7 @@ export default function TripPage() {
                     <td style={{fontWeight:600}}>{e.destination}</td>
                     <td style={{textAlign:'center'}}>{fmtDate(e.departure_date)}</td>
                     <td style={{textAlign:'center'}}>{fmtDate(e.return_date)}</td>
+                    <td style={{textAlign:'center'}}>{e.arrival_time || '午前'}着</td>
                     <td style={{textAlign:'center'}}>{e.nights}泊</td>
                     <td style={{textAlign:'right',fontFamily:'var(--mono)'}}>¥{e.lunch_allowance.toLocaleString()}</td>
                     <td style={{textAlign:'right',fontFamily:'var(--mono)'}}>¥{e.dinner_allowance.toLocaleString()}</td>
@@ -240,7 +252,7 @@ export default function TripPage() {
             </tbody>
             <tfoot>
               <tr style={{background:'var(--bg)'}}>
-                <td colSpan={isEditable?6:6} style={{textAlign:'right',fontWeight:700,padding:'10px 8px'}}>月合計</td>
+                <td colSpan={isEditable?7:7} style={{textAlign:'right',fontWeight:700,padding:'10px 8px'}}>月合計</td>
                 <td style={{textAlign:'right',fontFamily:'var(--mono)',fontWeight:700,fontSize:'14px',padding:'10px 8px'}}>¥{grandTotal.toLocaleString()}</td>
                 {isEditable && <td></td>}
               </tr>
