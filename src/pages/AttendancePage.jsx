@@ -4,6 +4,7 @@ import { useAuth } from '../components/AuthProvider';
 import { generateMonthRows, calcWorkHours } from '../lib/utils';
 import { openPrintPDF } from '../lib/pdf';
 import AttendanceTable from '../components/AttendanceTable';
+import TransportExpensePage from './TransportExpensePage';
 
 export default function AttendancePage() {
   var auth = useAuth();
@@ -16,6 +17,7 @@ export default function AttendancePage() {
   var _ld = useState(true), loading = _ld[0], setLoading = _ld[1];
   var _sv = useState(false), saving = _sv[0], setSaving = _sv[1];
   var _t = useState(''), toast = _t[0], setToast = _t[1];
+  var _te = useState([]), transportEntries = _te[0], setTransportEntries = _te[1];
   var saveTimer = useRef(null);
 
   function flash(msg) { setToast(msg); setTimeout(function() { setToast(''); }, 2500); }
@@ -202,7 +204,7 @@ export default function AttendancePage() {
         <div className="header-actions">
           <span className={'status-badge ' + statusClass}>{status}</span>
           <button className="btn-outline" onClick={handleRegenerate} disabled={saving}>🔄 再生成</button>
-          <button className="btn-outline" onClick={function() { openPrintPDF(rows, year, month, auth.profile ? auth.profile.full_name : '', status); }}>📄 PDF</button>
+          <button className="btn-outline" onClick={function() { openPrintPDF(rows, year, month, auth.profile ? auth.profile.full_name : '', status, transportEntries); }}>📄 PDF</button>
           {status === '申請済' || status === '承認済' ? (
             <button className="btn-danger" onClick={handleUnsubmit} disabled={saving || status === '承認済'}>{status === '承認済' ? '承認済' : '申請取消'}</button>
           ) : (
@@ -211,6 +213,12 @@ export default function AttendancePage() {
         </div>
       </div>
       <AttendanceTable rows={rows} onCellChange={onCellChange} readOnly={status === '承認済'} defaults={defaults} />
+
+      {/* 交通費セクション */}
+      <div style={{marginTop:'24px'}}>
+        <h3 style={{fontSize:'18px',fontWeight:700,color:'#1e293b',marginBottom:'12px',display:'flex',alignItems:'center',gap:'8px'}}>🚃 交通費（電車・バス）</h3>
+        <TransportExpensePage hideHeader={true} propYear={year} propMonth={month} onEntriesLoaded={setTransportEntries} />
+      </div>
     </div>
   );
 }

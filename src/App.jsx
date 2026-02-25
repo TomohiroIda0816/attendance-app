@@ -13,7 +13,6 @@ import ExpenseAdminPage from './pages/ExpenseAdminPage';
 import ProfilePage from './pages/ProfilePage';
 import InternPage from './pages/InternPage';
 import InternAdminPage from './pages/InternAdminPage';
-import TransportExpensePage from './pages/TransportExpensePage';
 
 export default function App() {
   var auth = useAuth();
@@ -158,7 +157,6 @@ export default function App() {
         <div className="header-left"><button className="btn-home" onClick={function(){setModule('home');}}>◀ ホーム</button><img src={logoImg} alt="ロゴ" className="header-logo-img" /><span className="header-brand">勤怠管理＋交通費</span></div>
         <nav className="header-nav">
           <button className={view==='attendance'?'nav-btn nav-active':'nav-btn'} onClick={function(){setView('attendance');}}>勤怠入力</button>
-          <button className={view==='transport'?'nav-btn nav-active':'nav-btn'} onClick={function(){setView('transport');}}>交通費</button>
           <button className={view==='months'?'nav-btn nav-active':'nav-btn'} onClick={function(){setView('months');}}>月別一覧</button>
           <button className={view==='settings'?'nav-btn nav-active':'nav-btn'} onClick={function(){setView('settings');}}>設定</button>
           {auth.isAdmin&&<button className={view==='admin'?'nav-btn nav-active':'nav-btn'} onClick={function(){setView('admin');}}>管理者</button>}
@@ -168,7 +166,6 @@ export default function App() {
       </header>
       <main className="app-main">
         {view==='attendance'&&<AttendancePage />}
-        {view==='transport'&&<TransportExpensePage />}
         {view==='settings'&&<SettingsPage />}
         {view==='months'&&<MonthsPage onNavigate={function(){setView('attendance');}} />}
         {view==='admin'&&auth.isAdmin&&<AdminPage />}

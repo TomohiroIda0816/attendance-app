@@ -20,10 +20,13 @@ function totalOvertimeForPdf(rows) {
   return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0');
 }
 
-export function openPrintPDF(rows, year, month, userName, status) {
+export function openPrintPDF(rows, year, month, userName, status, transportEntries) {
+  transportEntries = transportEntries || [];
   const th = totalHours(rows);
   const wd = workDayCount(rows);
   const ot = totalOvertimeForPdf(rows);
+  var transportTotal = 0;
+  transportEntries.forEach(function(e) { transportTotal += e.amount; });
 
   const html = `<!DOCTYPE html>
 <html lang="ja">
@@ -117,6 +120,39 @@ export function openPrintPDF(rows, year, month, userName, status) {
     <span>合計稼働時間: ${th}</span>
     <span>合計残業時間: ${ot}</span>
   </div>
+  ${transportEntries.length > 0 ? `
+  <div style="margin-top:16px;">
+    <h3 style="font-size:13px;font-weight:700;margin-bottom:6px;">🚃 交通費（電車・バス）</h3>
+    <table>
+      <thead><tr>
+        <th style="width:70px">日付</th>
+        <th style="width:50px">手段</th>
+        <th>区間</th>
+        <th style="width:50px">種別</th>
+        <th style="width:70px">金額</th>
+      </tr></thead>
+      <tbody>
+        ${transportEntries.map(function(e) {
+          var dt = e.expense_date ? new Date(e.expense_date) : null;
+          var ds = dt ? (dt.getMonth()+1)+'/'+dt.getDate() : '';
+          return '<tr>' +
+            '<td>' + ds + '</td>' +
+            '<td>' + (e.travel_method||'') + '</td>' +
+            '<td style="text-align:left">' + (e.travel_from||'') + '→' + (e.travel_to||'') + '</td>' +
+            '<td>' + (e.trip_type||'') + '</td>' +
+            '<td style="text-align:right;font-weight:600">&yen;' + e.amount.toLocaleString() + '</td>' +
+          '</tr>';
+        }).join('')}
+      </tbody>
+      <tfoot>
+        <tr style="border-top:2px solid #1e293b">
+          <td colspan="4" style="text-align:right;font-weight:700;font-size:10px">交通費合計</td>
+          <td style="text-align:right;font-weight:700;font-size:11px">&yen;${transportTotal.toLocaleString()}</td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+  ` : ''}
   <div class="signature-area">
     <div>
       <div class="signature-box">承認者</div>
