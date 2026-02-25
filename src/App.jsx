@@ -3,7 +3,6 @@ import { useAuth } from './components/AuthProvider';
 import logoImg from './assets/logo.png';
 import AuthPage from './pages/AuthPage';
 import AttendancePage from './pages/AttendancePage';
-import SettingsPage from './pages/SettingsPage';
 import MonthsPage from './pages/MonthsPage';
 import AdminPage from './pages/AdminPage';
 import TripPage from './pages/TripPage';
@@ -158,7 +157,6 @@ export default function App() {
         <nav className="header-nav">
           <button className={view==='attendance'?'nav-btn nav-active':'nav-btn'} onClick={function(){setView('attendance');}}>勤怠入力</button>
           <button className={view==='months'?'nav-btn nav-active':'nav-btn'} onClick={function(){setView('months');}}>月別一覧</button>
-          <button className={view==='settings'?'nav-btn nav-active':'nav-btn'} onClick={function(){setView('settings');}}>設定</button>
           {auth.isAdmin&&<button className={view==='admin'?'nav-btn nav-active':'nav-btn'} onClick={function(){setView('admin');}}>管理者</button>}
           <button className="nav-btn" onClick={function(){setModule('profile');}}>👤</button>
           <button className="nav-logout" onClick={function(){auth.signOut();}}>ログアウト</button>
@@ -166,7 +164,6 @@ export default function App() {
       </header>
       <main className="app-main">
         {view==='attendance'&&<AttendancePage />}
-        {view==='settings'&&<SettingsPage />}
         {view==='months'&&<MonthsPage onNavigate={function(){setView('attendance');}} />}
         {view==='admin'&&auth.isAdmin&&<AdminPage />}
       </main>

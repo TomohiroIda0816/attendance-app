@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../components/AuthProvider';
-import { generateMonthRows, calcWorkHours } from '../lib/utils';
+import { generateMonthRows, calcWorkHours, TIME_OPTIONS, DEDUCTION_OPTIONS } from '../lib/utils';
 import { openPrintPDF } from '../lib/pdf';
 import AttendanceTable from '../components/AttendanceTable';
 import TransportExpensePage from './TransportExpensePage';
@@ -18,6 +18,9 @@ export default function AttendancePage() {
   var _sv = useState(false), saving = _sv[0], setSaving = _sv[1];
   var _t = useState(''), toast = _t[0], setToast = _t[1];
   var _te = useState([]), transportEntries = _te[0], setTransportEntries = _te[1];
+  var _defSettings = useState({ start_time: '09:00', end_time: '18:00', deduction: '01:00', work_content: '通常勤務', transport: 0 });
+  var defSettings = _defSettings[0], setDefSettings = _defSettings[1];
+  var _savingDef = useState(false), savingDef = _savingDef[0], setSavingDef = _savingDef[1];
   var saveTimer = useRef(null);
 
   function flash(msg) { setToast(msg); setTimeout(function() { setToast(''); }, 2500); }
@@ -46,7 +49,17 @@ export default function AttendancePage() {
     var p = defs ? Promise.resolve(defs) : supabase
       .from('default_settings').select('*').eq('user_id', userId).single()
       .then(function(res) {
-        if (res.data) { setDefaults(res.data); return res.data; }
+        if (res.data) {
+          setDefaults(res.data);
+          setDefSettings({
+            start_time: res.data.start_time || '09:00',
+            end_time: res.data.end_time || '18:00',
+            deduction: res.data.deduction || '01:00',
+            work_content: res.data.work_content || '通常勤務',
+            transport: res.data.transport || 0,
+          });
+          return res.data;
+        }
         return {};
       }).catch(function() { return {}; });
 
@@ -179,6 +192,17 @@ export default function AttendancePage() {
       .finally(function() { setSaving(false); });
   }
 
+  function handleSaveDefSettings() {
+    setSavingDef(true);
+    supabase.from('default_settings').update(defSettings).eq('user_id', auth.user.id)
+      .then(function() {
+        setDefaults(Object.assign({}, defaults, defSettings));
+        flash('デフォルト設定を保存しました');
+      })
+      .catch(function() { flash('設定の保存に失敗しました'); })
+      .finally(function() { setSavingDef(false); });
+  }
+
   function prevMonth() {
     if (month === 1) { setMonth(12); setYear(year - 1); } else { setMonth(month - 1); }
   }
@@ -212,6 +236,43 @@ export default function AttendancePage() {
           )}
         </div>
       </div>
+      {status !== '申請済' && status !== '承認済' && (
+        <div className="card" style={{marginBottom:'16px'}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'8px'}}>
+            <h3 className="card-title" style={{margin:0}}>⚙️ デフォルト勤務設定</h3>
+            <button className="btn-primary" onClick={handleSaveDefSettings} disabled={savingDef} style={{padding:'6px 16px',fontSize:'12px'}}>{savingDef ? '保存中...' : '設定を保存'}</button>
+          </div>
+          <p className="card-desc" style={{marginBottom:'10px'}}>平日に自動入力される値を設定します。変更後「🔄 再生成」で現在の月に反映できます。</p>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(150px, 1fr))',gap:'10px'}}>
+            <div className="form-group" style={{marginBottom:0}}>
+              <label className="form-label" style={{fontSize:'11px'}}>開始時間</label>
+              <select className="form-select" value={defSettings.start_time} onChange={function(e){setDefSettings(Object.assign({},defSettings,{start_time:e.target.value}));}}>
+                {TIME_OPTIONS.map(function(t){return <option key={t} value={t}>{t||'---'}</option>;})}
+              </select>
+            </div>
+            <div className="form-group" style={{marginBottom:0}}>
+              <label className="form-label" style={{fontSize:'11px'}}>終了時間</label>
+              <select className="form-select" value={defSettings.end_time} onChange={function(e){setDefSettings(Object.assign({},defSettings,{end_time:e.target.value}));}}>
+                {TIME_OPTIONS.map(function(t){return <option key={t} value={t}>{t||'---'}</option>;})}
+              </select>
+            </div>
+            <div className="form-group" style={{marginBottom:0}}>
+              <label className="form-label" style={{fontSize:'11px'}}>控除時間</label>
+              <select className="form-select" value={defSettings.deduction} onChange={function(e){setDefSettings(Object.assign({},defSettings,{deduction:e.target.value}));}}>
+                {DEDUCTION_OPTIONS.map(function(t){return <option key={t} value={t}>{t||'---'}</option>;})}
+              </select>
+            </div>
+            <div className="form-group" style={{marginBottom:0}}>
+              <label className="form-label" style={{fontSize:'11px'}}>稼動内容</label>
+              <input className="form-input" value={defSettings.work_content} onChange={function(e){setDefSettings(Object.assign({},defSettings,{work_content:e.target.value}));}} />
+            </div>
+            <div className="form-group" style={{marginBottom:0}}>
+              <label className="form-label" style={{fontSize:'11px'}}>通勤交通費（円/日）</label>
+              <input className="form-input" type="number" value={defSettings.transport} onChange={function(e){setDefSettings(Object.assign({},defSettings,{transport:Number(e.target.value)||0}));}} placeholder="0" />
+            </div>
+          </div>
+        </div>
+      )}
       <AttendanceTable rows={rows} onCellChange={onCellChange} readOnly={status === '承認済'} defaults={defaults} />
 
       {/* 交通費セクション */}
