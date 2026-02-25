@@ -50,11 +50,16 @@ function DateCalendar(props) {
   );
 }
 
-export default function TransportExpensePage() {
+export default function TransportExpensePage(props) {
+  var hideHeader = props && props.hideHeader;
+  var propYear = props && props.propYear;
+  var propMonth = props && props.propMonth;
+  var onEntriesLoaded = props && props.onEntriesLoaded;
+
   var auth = useAuth();
   var now = new Date();
-  var _y = useState(now.getFullYear()), year = _y[0], setYear = _y[1];
-  var _m = useState(now.getMonth()+1), month = _m[0], setMonth = _m[1];
+  var _y = useState(propYear || now.getFullYear()), year = _y[0], setYear = _y[1];
+  var _m = useState(propMonth || now.getMonth()+1), month = _m[0], setMonth = _m[1];
   var _rid = useState(null), reportId = _rid[0], setReportId = _rid[1];
   var _entries = useState([]), entries = _entries[0], setEntries = _entries[1];
   var _ld = useState(true), loading = _ld[0], setLoading = _ld[1];
@@ -95,6 +100,7 @@ export default function TransportExpensePage() {
                 return e.category === '旅費交通費' && (e.travel_method === '電車' || e.travel_method === 'バス');
               });
               setEntries(filtered);
+              if (onEntriesLoaded) onEntriesLoaded(filtered);
             });
         } else {
           return supabase.from('expense_monthly_reports')
@@ -103,10 +109,11 @@ export default function TransportExpensePage() {
             .then(function(newRes) {
               if (newRes.data) { setReportId(newRes.data.id); }
               setEntries([]);
+              if (onEntriesLoaded) onEntriesLoaded([]);
             });
         }
       })
-      .catch(function() { setEntries([]); })
+      .catch(function() { setEntries([]); if (onEntriesLoaded) onEntriesLoaded([]); })
       .finally(function() { setLoading(false); });
   }
 
@@ -116,6 +123,12 @@ export default function TransportExpensePage() {
       .then(function(res) { setFavs(res.data || []); })
       .catch(function() {});
   }
+
+  // props年月が変わったら内部stateを同期
+  useEffect(function() {
+    if (propYear !== undefined && propYear !== year) setYear(propYear);
+    if (propMonth !== undefined && propMonth !== month) setMonth(propMonth);
+  }, [propYear, propMonth]);
 
   useEffect(function() { loadData(); loadFavs(); }, [auth.user, year, month]);
 
@@ -273,13 +286,15 @@ export default function TransportExpensePage() {
     <div className="expense-page">
       {toast && <div className="toast">{toast}</div>}
 
-      <div className="month-header">
-        <div className="month-nav">
-          <button className="btn-icon" onClick={prevMonth}>◀</button>
-          <h2 className="month-title">{year}年{month}月</h2>
-          <button className="btn-icon" onClick={nextMonth}>▶</button>
+      {!hideHeader && (
+        <div className="month-header">
+          <div className="month-nav">
+            <button className="btn-icon" onClick={prevMonth}>◀</button>
+            <h2 className="month-title">{year}年{month}月</h2>
+            <button className="btn-icon" onClick={nextMonth}>▶</button>
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="expense-actions-row">
         <div className="expense-btn-row">

@@ -164,7 +164,7 @@ export default function AdminPage() {
             {(rpt.status === '申請済' || rpt.status === '承認済') && (
               <button className="btn-danger" onClick={function() { setShowReject(!showReject); setEditing(false); }}>✗ 差戻し</button>
             )}
-            <button className="btn-outline" onClick={function() { openPrintPDF(detailView.rows, year, month, u.full_name, rpt.status); }}>📄 PDF</button>
+            <button className="btn-outline" onClick={function() { openPrintPDF(detailView.rows, year, month, u.full_name, rpt.status, transportEntries); }}>📄 PDF</button>
           </div>
         </div>
 
