@@ -105,7 +105,7 @@ export default function AdminPage() {
         {toast && <div className="toast">{toast}</div>}
         <div className="month-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <button className="btn-ghost" onClick={function() { setDetailView(null); setEditing(false); setShowReject(false); }}>← 戻る</button>
+            <button className="btn-ghost" onClick={function() { setDetailView(null); setEditing(false); }}>← 戻る</button>
             <h2 className="month-title">{u.full_name} — {year}年{month}月</h2>
           </div>
           <div className="header-actions">
