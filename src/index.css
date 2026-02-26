@@ -831,6 +831,14 @@ body {
 .missing-field-warning { margin-top: 3px; font-size: 11px; color: #ef4444; font-weight: 700; }
 .missing-field-warning-box { background: #fef2f2; border: 1px solid #fca5a5; border-radius: 8px; padding: 10px 14px; }
 .missing-field-warning-detail { font-size: 13px; color: #dc2626; font-weight: 700; line-height: 1.6; }
+.no-receipt-badge-inline { display: inline-block; font-size: 10px; font-weight: 700; color: #92400e; background: #fef3c7; padding: 1px 5px; border-radius: 4px; }
+.no-invoice-approved-inline { color: #166534; font-weight: 600; font-size: 11px; }
+.no-receipt-reason-inline { color: #92400e; font-weight: 600; font-size: 11px; }
+.no-invoice-approved-detail { color: #166534; font-weight: 600; }
+.no-receipt-detail-box { background: #fef3c7; border: 1px solid #fbbf24; border-radius: 8px; padding: 10px 14px; }
+.no-receipt-detail-header { font-size: 13px; font-weight: 700; color: #92400e; }
+.no-receipt-detail-reason { font-size: 13px; color: #78350f; margin-top: 4px; }
+.no-receipt-detail-approved { font-size: 12px; color: #166534; font-weight: 600; margin-top: 4px; }
 .batch-action-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; gap: 8px; }
 .batch-action-left { display: flex; gap: 8px; align-items: center; }
 .row-checked { background: #eff6ff !important; }

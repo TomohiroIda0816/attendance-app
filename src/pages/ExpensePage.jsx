@@ -37,6 +37,15 @@ function getMissingFieldWarnings(e) {
   }
   return warnings;
 }
+function extractNoReceiptReason(desc) {
+  if (!desc) return '';
+  var m = desc.match(/【領収書なし理由: (.+?)】/);
+  return m ? m[1] : '';
+}
+function hasNoInvoiceApproval(desc) {
+  if (!desc) return false;
+  return desc.indexOf('【インボイス番号なし: 責任者了承済】') >= 0;
+}
 function fileToBase64(file) {
   return new Promise(function(resolve, reject) {
     var r = new FileReader();
@@ -415,8 +424,17 @@ export default function ExpensePage() {
                 </div>
               </div>
             )}
-            {de.category!=='旅費交通費'&&de.description&&(<div className="trip-detail-item"><span className="trip-detail-label">内容</span><span className="trip-detail-value">{de.description}</span></div>)}
-            {de.receipt_data && (<div className="trip-detail-item"><span className="trip-detail-label">インボイス番号</span><span className="trip-detail-value">{de.invoice_number ? de.invoice_number : <span className="invoice-warning-inline">⚠️ 未登録</span>}</span></div>)}
+            {de.category!=='旅費交通費'&&de.description&&(<div className="trip-detail-item"><span className="trip-detail-label">内容</span><span className="trip-detail-value">{de.description.replace(/【領収書なし理由: .+?】/g,'').replace(/【インボイス番号なし: 責任者了承済】/g,'').trim()}</span></div>)}
+            {de.receipt_data && (<div className="trip-detail-item"><span className="trip-detail-label">インボイス番号</span><span className="trip-detail-value">{de.invoice_number ? de.invoice_number : (hasNoInvoiceApproval(de.description) ? <span className="no-invoice-approved-detail">なし（責任者了承済）</span> : <span className="invoice-warning-inline">⚠️ 未登録</span>)}</span></div>)}
+            {!de.receipt_data && (
+              <div className="trip-detail-item" style={{gridColumn:'1/-1'}}>
+                <div className="no-receipt-detail-box">
+                  <div className="no-receipt-detail-header">📎 領収書なし（例外申告）</div>
+                  {extractNoReceiptReason(de.description) && <div className="no-receipt-detail-reason">理由: {extractNoReceiptReason(de.description)}</div>}
+                  <div className="no-receipt-detail-approved">✅ 責任者了承済</div>
+                </div>
+              </div>
+            )}
           </div>
           {de.receipt_data && (
             <div className="receipt-preview-section">
@@ -660,6 +678,8 @@ export default function ExpensePage() {
               <tbody>
                 {entries.map(function(e){
                   var rowWarnings = getMissingFieldWarnings(e);
+                  var noReceiptReason = extractNoReceiptReason(e.description);
+                  var noInvoiceApproved = hasNoInvoiceApproval(e.description);
                   return (
                     <tr key={e.id} className={'admin-table-row'+(checked[e.id]?' row-checked':'')} style={{cursor:'pointer'}} onClick={function(){setDetailEntry(e);}}>
                       {isEditable && (
@@ -670,8 +690,18 @@ export default function ExpensePage() {
                       <td style={{textAlign:'center'}}>{fmtDate(e.expense_date)}</td>
                       <td style={{textAlign:'center'}}><span className={'expense-cat expense-cat-'+e.category}>{e.category}</span></td>
                       <td style={{textAlign:'left'}}>{getDetail(e)}{rowWarnings.length > 0 && <div className="missing-field-warning">{rowWarnings.join(' / ')}</div>}</td>
-                      <td style={{textAlign:'center'}}>{e.receipt_data ? (e.invoice_number ? '📎' : '⚠️') : ''}</td>
-                      <td style={{textAlign:'center',fontSize:'11px',fontFamily:'var(--mono)'}}>{e.invoice_number || (e.receipt_data ? <span className="invoice-warning-inline">未登録</span> : '')}</td>
+                      <td style={{textAlign:'center'}}>{e.receipt_data ? (e.invoice_number ? '📎' : '⚠️') : (noReceiptReason ? <span className="no-receipt-badge-inline" title={noReceiptReason}>なし</span> : '')}</td>
+                      <td style={{textAlign:'center',fontSize:'11px',fontFamily:'var(--mono)'}}>
+                        {e.invoice_number
+                          ? e.invoice_number
+                          : e.receipt_data
+                            ? (noInvoiceApproved
+                              ? <span className="no-invoice-approved-inline">なし(了承済)</span>
+                              : <span className="invoice-warning-inline">未登録</span>)
+                            : (noReceiptReason
+                              ? <span className="no-receipt-reason-inline" title={noReceiptReason}>領収書なし</span>
+                              : '')}
+                      </td>
                       <td style={{textAlign:'right',fontFamily:'var(--mono)',fontWeight:600}}>¥{e.amount.toLocaleString()}</td>
                       {isEditable && (
                         <td style={{textAlign:'center'}} onClick={function(ev){ev.stopPropagation();}}>
