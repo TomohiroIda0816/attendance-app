@@ -41,6 +41,7 @@ export default function TripPage() {
   var _arrTime = useState('午前'), arrTime = _arrTime[0], setArrTime = _arrTime[1];
   var _saving = useState(false), saving = _saving[0], setSaving = _saving[1];
   var _t = useState(''), toast = _t[0], setToast = _t[1];
+  var _checked = useState({}), checked = _checked[0], setChecked = _checked[1];
 
   function flash(msg) { setToast(msg); setTimeout(function(){setToast('');}, 2500); }
 
@@ -110,6 +111,35 @@ export default function TripPage() {
   var grandTotal = 0;
   entries.forEach(function(e) { grandTotal += e.total_allowance; });
   var isEditable = true;
+
+  var checkedIds = Object.keys(checked).filter(function(k){return checked[k];});
+  var allChecked = entries.length > 0 && checkedIds.length === entries.length;
+
+  function toggleCheck(id) {
+    var next = Object.assign({}, checked);
+    next[id] = !next[id];
+    setChecked(next);
+  }
+  function toggleAll() {
+    if (allChecked) { setChecked({}); }
+    else {
+      var next = {};
+      entries.forEach(function(e){next[e.id]=true;});
+      setChecked(next);
+    }
+  }
+  function handleBatchDelete() {
+    if (checkedIds.length === 0) { flash('削除する項目を選択してください'); return; }
+    if (!confirm(checkedIds.length+'件を削除しますか？')) return;
+    setSaving(true);
+    Promise.all(checkedIds.map(function(id){
+      return supabase.from('trip_entries').delete().eq('id', id);
+    })).then(function(){
+      flash(checkedIds.length+'件削除しました');
+      setChecked({}); loadData();
+    }).catch(function(){ flash('削除に失敗しました'); })
+    .finally(function(){ setSaving(false); });
+  }
 
   if (loading) return (<div className="page-loading"><div className="spinner"></div><span>読み込み中...</span></div>);
 
@@ -183,10 +213,20 @@ export default function TripPage() {
       {entries.length === 0 ? (
         <div className="card"><p className="empty-state">この月の出張記録はありません。{isEditable ? '「出張を追加」から登録してください。' : ''}</p></div>
       ) : (
+        <>
+          {/* 一括操作バー */}
+          {checkedIds.length > 0 && isEditable && (
+            <div className="batch-action-bar">
+              <div className="batch-action-left">
+                <button className="btn-danger" style={{fontSize:'12px',padding:'6px 14px'}} onClick={handleBatchDelete}>🗑 選択した{checkedIds.length}件を削除</button>
+              </div>
+            </div>
+          )}
         <div className="card" style={{padding:'0',overflow:'hidden'}}>
           <table className="admin-table">
             <thead>
               <tr>
+                {isEditable && <th style={{textAlign:'center',width:'36px'}}><input type="checkbox" checked={allChecked} onChange={toggleAll} /></th>}
                 <th style={{textAlign:'left'}}>出張先</th>
                 <th style={{textAlign:'center'}}>出発日</th>
                 <th style={{textAlign:'center'}}>帰着日</th>
@@ -201,7 +241,12 @@ export default function TripPage() {
             <tbody>
               {entries.map(function(e){
                 return (
-                  <tr key={e.id} className="admin-table-row">
+                  <tr key={e.id} className={'admin-table-row'+(checked[e.id]?' row-checked':'')}>
+                    {isEditable && (
+                      <td style={{textAlign:'center'}}>
+                        <input type="checkbox" checked={!!checked[e.id]} onChange={function(){toggleCheck(e.id);}} />
+                      </td>
+                    )}
                     <td style={{fontWeight:600}}>{e.destination}</td>
                     <td style={{textAlign:'center'}}>{fmtDate(e.departure_date)}</td>
                     <td style={{textAlign:'center'}}>{fmtDate(e.return_date)}</td>
@@ -224,13 +269,14 @@ export default function TripPage() {
             </tbody>
             <tfoot>
               <tr style={{background:'var(--bg)'}}>
-                <td colSpan={isEditable?7:7} style={{textAlign:'right',fontWeight:700,padding:'10px 8px'}}>月合計</td>
+                <td colSpan={isEditable?8:7} style={{textAlign:'right',fontWeight:700,padding:'10px 8px'}}>月合計</td>
                 <td style={{textAlign:'right',fontFamily:'var(--mono)',fontWeight:700,fontSize:'14px',padding:'10px 8px'}}>¥{grandTotal.toLocaleString()}</td>
                 {isEditable && <td></td>}
               </tr>
             </tfoot>
           </table>
         </div>
+        </>
       )}
     </div>
   );
