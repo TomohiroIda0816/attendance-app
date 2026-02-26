@@ -9,9 +9,6 @@ function fmtDate(d) {
   var dt = new Date(d);
   return dt.getFullYear()+'/'+String(dt.getMonth()+1).padStart(2,'0')+'/'+String(dt.getDate()).padStart(2,'0');
 }
-function statusClass(s) {
-  return {'未作成':'badge-none','下書き':'badge-draft','申請済':'badge-submitted','承認済':'badge-approved','差戻し':'badge-rejected'}[s]||'badge-draft';
-}
 function getDetail(e) {
   if (e.category==='旅費交通費') {
     var p = [];
@@ -81,11 +78,6 @@ export default function ExpenseAdminPage() {
       .catch(function(){});
   }
 
-  function updateStatus(reportId, newStatus) {
-    supabase.from('expense_monthly_reports').update({status:newStatus}).eq('id',reportId)
-      .then(function(){ flash('ステータスを「'+newStatus+'」に更新しました'); setDetail(null); loadData(); })
-      .catch(function(){ flash('更新に失敗しました'); });
-  }
 
   function saveApiKey() {
     supabase.from('system_settings').upsert({ key: 'anthropic_api_key', value: apiKey, updated_at: new Date().toISOString() })
@@ -160,17 +152,7 @@ export default function ExpenseAdminPage() {
             <h2 className="month-title">{u.full_name} — {year}年{month}月</h2>
           </div>
           <div className="header-actions">
-            <span className={'status-badge '+statusClass(rpt.status)}>{rpt.status}</span>
-            {(rpt.status==='申請済' || rpt.status==='差戻し') && (
-              <button className="btn-submit" onClick={function(){updateStatus(rpt.id,'承認済');}}>✓ 承認</button>
-            )}
-            {rpt.status==='承認済' && (
-              <button className="btn-danger" onClick={function(){if(confirm('承認を取り消しますか？')){updateStatus(rpt.id,'申請済');}}}>↩ 承認取消</button>
-            )}
-            {(rpt.status==='申請済' || rpt.status==='承認済') && (
-              <button className="btn-danger" onClick={function(){updateStatus(rpt.id,'差戻し');}}>✗ 差戻し</button>
-            )}
-            <button className="btn-outline" onClick={function(){exportExpenseExcel(ent,year,month,u.full_name,rpt.status);}}>📊 Excel</button>
+            <button className="btn-outline" onClick={function(){exportExpenseExcel(ent,year,month,u.full_name);}}>📊 Excel</button>
             <button className="btn-outline" onClick={function(){openReceiptCompilationPDF(ent,year,month,u.full_name);}}>🧾 領収書PDF</button>
           </div>
         </div>
@@ -234,10 +216,7 @@ export default function ExpenseAdminPage() {
         </div>
         <div className="header-actions">
           <button className="btn-outline" style={{fontSize:'11px'}} onClick={function(){setShowKeyInput(!showKeyInput);}}>🔑 API設定</button>
-          <span className="admin-summary">全{users.length}名
-            {users.filter(function(u){return u.status==='申請済';}).length>0 &&
-              <span className="admin-pending"> / 未承認: {users.filter(function(u){return u.status==='申請済';}).length}名</span>}
-          </span>
+          <span className="admin-summary">全{users.length}名</span>
         </div>
       </div>
       {showKeyInput && (
@@ -256,8 +235,8 @@ export default function ExpenseAdminPage() {
             <thead><tr>
               <th style={{textAlign:'left'}}>氏名</th>
               <th style={{textAlign:'left'}}>メールアドレス</th>
-              <th style={{textAlign:'center',width:'100px'}}>ステータス</th>
-              <th style={{textAlign:'center',width:'160px'}}>操作</th>
+              <th style={{textAlign:'center',width:'100px'}}>登録状況</th>
+              <th style={{textAlign:'center',width:'100px'}}>操作</th>
             </tr></thead>
             <tbody>
               {users.map(function(u){
@@ -265,19 +244,10 @@ export default function ExpenseAdminPage() {
                   <tr key={u.id} className="admin-table-row">
                     <td className="admin-table-name">{u.full_name}{u.role==='admin'&&<span className="admin-role-badge">管理者</span>}</td>
                     <td className="admin-table-email">{u.email}</td>
-                    <td style={{textAlign:'center'}}><span className={'status-badge '+statusClass(u.status)}>{u.status}</span></td>
+                    <td style={{textAlign:'center'}}>{u.report ? <span className="status-badge badge-approved">登録済</span> : <span className="status-badge badge-none">未作成</span>}</td>
                     <td style={{textAlign:'center'}}>
                       {u.report ? (
-                        <div className="admin-actions">
-                          <button className="btn-small" onClick={function(){viewDetail(u);}}>詳細</button>
-                          {u.status==='申請済'&&(<>
-                            <button className="btn-small btn-small-approve" onClick={function(){updateStatus(u.report.id,'承認済');}}>承認</button>
-                            <button className="btn-small btn-small-reject" onClick={function(){updateStatus(u.report.id,'差戻し');}}>差戻</button>
-                          </>)}
-                          {u.status==='承認済' && (
-                            <button className="btn-small btn-small-reject" onClick={function(){if(confirm('承認を取り消しますか？')){updateStatus(u.report.id,'申請済');}}}>承認取消</button>
-                          )}
-                        </div>
+                        <button className="btn-small" onClick={function(){viewDetail(u);}}>詳細</button>
                       ) : (<span className="admin-no-data">—</span>)}
                     </td>
                   </tr>

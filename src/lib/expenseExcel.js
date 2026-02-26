@@ -40,7 +40,7 @@ function catDetail(e) {
   return e.description;
 }
 
-export function exportExpenseExcel(entries, year, month, userName, status) {
+export function exportExpenseExcel(entries, year, month, userName) {
   var totalAmount = 0;
   var catTotals = {};
   entries.forEach(function(e) {
@@ -59,7 +59,7 @@ export function exportExpenseExcel(entries, year, month, userName, status) {
     cell(''),
     cell(year + '年 ' + month + '月', { alignment: { horizontal: 'center' }, font: { sz: 11 } }),
     cell(''),
-    cell(status || '下書き', { font: { bold: true, sz: 11 }, alignment: { horizontal: 'right' } }),
+    cell(''),
   ]);
   wsData.push([]);
 

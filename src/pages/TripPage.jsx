@@ -23,9 +23,6 @@ function fmtDate(d) {
   return dt.getFullYear() + '/' + String(dt.getMonth()+1).padStart(2,'0') + '/' + String(dt.getDate()).padStart(2,'0');
 }
 
-function statusClass(s) {
-  return {'下書き':'badge-draft','申請済':'badge-submitted','承認済':'badge-approved','差戻し':'badge-rejected'}[s]||'badge-draft';
-}
 
 export default function TripPage() {
   var auth = useAuth();
@@ -105,25 +102,6 @@ export default function TripPage() {
       .catch(function() { flash('削除に失敗しました'); });
   }
 
-  function handleSubmit() {
-    if (!reportId) return;
-    setSaving(true);
-    supabase.from('trip_monthly_reports')
-      .update({ status: '申請済', submitted_at: new Date().toISOString() }).eq('id', reportId)
-      .then(function() { setStatus('申請済'); flash(year+'年'+month+'月 申請しました'); })
-      .catch(function() { flash('申請に失敗しました'); })
-      .finally(function() { setSaving(false); });
-  }
-
-  function handleUnsubmit() {
-    if (!reportId) return;
-    setSaving(true);
-    supabase.from('trip_monthly_reports')
-      .update({ status: '下書き', submitted_at: null }).eq('id', reportId)
-      .then(function() { setStatus('下書き'); flash('申請を取り消しました'); })
-      .catch(function() { flash('取り消しに失敗しました'); })
-      .finally(function() { setSaving(false); });
-  }
 
   function prevMonth() { if (month===1){setMonth(12);setYear(year-1);}else{setMonth(month-1);} }
   function nextMonth() { if (month===12){setMonth(1);setYear(year+1);}else{setMonth(month+1);} }
@@ -131,7 +109,7 @@ export default function TripPage() {
   var allow = calcAllowance(dep, ret, arrTime);
   var grandTotal = 0;
   entries.forEach(function(e) { grandTotal += e.total_allowance; });
-  var isEditable = status === '下書き' || status === '差戻し';
+  var isEditable = true;
 
   if (loading) return (<div className="page-loading"><div className="spinner"></div><span>読み込み中...</span></div>);
 
@@ -146,13 +124,7 @@ export default function TripPage() {
           <button className="btn-icon" onClick={nextMonth}>▶</button>
         </div>
         <div className="header-actions">
-          <span className={'status-badge '+statusClass(status)}>{status}</span>
-          <button className="btn-outline" onClick={function(){exportTripExcel(entries,year,month,auth.profile?auth.profile.full_name:'',status);}}>📊 Excel</button>
-          {status==='申請済'||status==='承認済' ? (
-            <button className="btn-danger" onClick={handleUnsubmit} disabled={saving||status==='承認済'}>{status==='承認済'?'承認済':'申請取消'}</button>
-          ) : (
-            <button className="btn-submit" onClick={handleSubmit} disabled={saving}>✓ 申請</button>
-          )}
+          <button className="btn-outline" onClick={function(){exportTripExcel(entries,year,month,auth.profile?auth.profile.full_name:'');}}>📊 Excel</button>
         </div>
       </div>
 

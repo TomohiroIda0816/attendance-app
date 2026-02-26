@@ -12,7 +12,7 @@ export default function AttendancePage() {
   var _m = useState(new Date().getMonth() + 1), month = _m[0], setMonth = _m[1];
   var _r = useState([]), rows = _r[0], setRows = _r[1];
   var _rid = useState(null), reportId = _rid[0], setReportId = _rid[1];
-  var _st = useState('下書き'), status = _st[0], setStatus = _st[1];
+  var _st = useState(null), status = _st[0], setStatus = _st[1];
   var _def = useState(null), defaults = _def[0], setDefaults = _def[1];
   var _ld = useState(true), loading = _ld[0], setLoading = _ld[1];
   var _sv = useState(false), saving = _sv[0], setSaving = _sv[1];
@@ -128,49 +128,6 @@ export default function AttendancePage() {
     }, 800);
   }
 
-  function handleSubmit() {
-    if (!reportId) return;
-    // 休憩バリデーション: 6h超で45分未満の休憩がある行をチェック
-    var errors = [];
-    rows.forEach(function(r) {
-      if (!r.start_time || !r.end_time) return;
-      if (r.work_type === '有給' || r.work_type === '欠勤') return;
-      var sp = r.start_time.split(':'), ep = r.end_time.split(':');
-      var grossMin = (parseInt(ep[0]) * 60 + parseInt(ep[1])) - (parseInt(sp[0]) * 60 + parseInt(sp[1]));
-      var dedMin = 0;
-      if (r.deduction) { var dp = r.deduction.split(':'); dedMin = parseInt(dp[0]) * 60 + parseInt(dp[1] || 0); }
-      if (grossMin > 360 && dedMin < 45) errors.push(r.day + '日');
-    });
-    if (errors.length > 0) {
-      flash(errors.join(', ') + ' : 6時間超勤務で45分以上の休憩が必要です');
-      return;
-    }
-    setSaving(true);
-    supabase.from('monthly_reports')
-      .update({ status: '申請済', submitted_at: new Date().toISOString() })
-      .eq('id', reportId)
-      .then(function() {
-        setStatus('申請済');
-        flash(year + '年' + month + '月 申請しました');
-      })
-      .catch(function() { flash('申請に失敗しました'); })
-      .finally(function() { setSaving(false); });
-  }
-
-  function handleUnsubmit() {
-    if (!reportId) return;
-    setSaving(true);
-    supabase.from('monthly_reports')
-      .update({ status: '下書き', submitted_at: null })
-      .eq('id', reportId)
-      .then(function() {
-        setStatus('下書き');
-        flash('申請を取り消しました');
-      })
-      .catch(function() { flash('取り消しに失敗しました'); })
-      .finally(function() { setSaving(false); });
-  }
-
   function handleRegenerate() {
     if (!reportId) return;
     setSaving(true);
@@ -184,8 +141,7 @@ export default function AttendancePage() {
       })
       .then(function(res) {
         if (res.data) setRows(res.data);
-        setStatus('下書き');
-        return supabase.from('monthly_reports').update({ status: '下書き' }).eq('id', reportId);
+        return Promise.resolve();
       })
       .then(function() { flash('デフォルト設定で再生成しました'); })
       .catch(function() { flash('再生成に失敗しました'); })
@@ -210,8 +166,6 @@ export default function AttendancePage() {
     if (month === 12) { setMonth(1); setYear(year + 1); } else { setMonth(month + 1); }
   }
 
-  var statusClass = { '下書き': 'badge-draft', '申請済': 'badge-submitted', '承認済': 'badge-approved', '差戻し': 'badge-rejected' }[status] || 'badge-draft';
-
   if (loading) {
     return (<div className="page-loading"><div className="spinner"></div><span>読み込み中...</span></div>);
   }
@@ -226,18 +180,11 @@ export default function AttendancePage() {
           <button className="btn-icon" onClick={nextMonth}>▶</button>
         </div>
         <div className="header-actions">
-          <span className={'status-badge ' + statusClass}>{status}</span>
           <button className="btn-outline" onClick={handleRegenerate} disabled={saving}>🔄 再生成</button>
-          <button className="btn-outline" onClick={function() { exportAttendanceExcel(rows, year, month, auth.profile ? auth.profile.full_name : '', status, transportEntries); }}>📊 Excel</button>
-          {status === '申請済' || status === '承認済' ? (
-            <button className="btn-danger" onClick={handleUnsubmit} disabled={saving || status === '承認済'}>{status === '承認済' ? '承認済' : '申請取消'}</button>
-          ) : (
-            <button className="btn-submit" onClick={handleSubmit} disabled={saving}>✓ 申請</button>
-          )}
+          <button className="btn-outline" onClick={function() { exportAttendanceExcel(rows, year, month, auth.profile ? auth.profile.full_name : '', transportEntries); }}>📊 Excel</button>
         </div>
       </div>
-      {status !== '申請済' && status !== '承認済' && (
-        <div className="card" style={{marginBottom:'16px'}}>
+      <div className="card" style={{marginBottom:'16px'}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'8px'}}>
             <h3 className="card-title" style={{margin:0}}>⚙️ デフォルト勤務設定</h3>
             <button className="btn-primary" onClick={handleSaveDefSettings} disabled={savingDef} style={{padding:'6px 16px',fontSize:'12px'}}>{savingDef ? '保存中...' : '設定を保存'}</button>
@@ -272,8 +219,7 @@ export default function AttendancePage() {
             </div>
           </div>
         </div>
-      )}
-      <AttendanceTable rows={rows} onCellChange={onCellChange} readOnly={status === '承認済'} defaults={defaults} />
+      <AttendanceTable rows={rows} onCellChange={onCellChange} readOnly={false} defaults={defaults} />
 
       {/* 交通費セクション */}
       <div style={{marginTop:'24px'}}>

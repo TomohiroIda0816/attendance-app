@@ -28,7 +28,7 @@ function fmtDate(d) {
   return (dt.getMonth() + 1) + '/' + dt.getDate();
 }
 
-export function exportTripExcel(entries, year, month, userName, status) {
+export function exportTripExcel(entries, year, month, userName) {
   var totalLunch = 0, totalDinner = 0, totalAll = 0;
   entries.forEach(function(e) {
     totalLunch += e.lunch_allowance;
@@ -48,7 +48,7 @@ export function exportTripExcel(entries, year, month, userName, status) {
     cell(year + '年 ' + month + '月', { alignment: { horizontal: 'center' }, font: { sz: 11 } }),
     cell(''), cell(''),
     cell(''),
-    cell(status || '下書き', { font: { bold: true, sz: 11 }, alignment: { horizontal: 'right' } }),
+    cell(''),
   ]);
   wsData.push([]);
 

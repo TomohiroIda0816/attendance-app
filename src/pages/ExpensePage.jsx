@@ -12,9 +12,6 @@ function fmtDate(d) {
   var dt = new Date(d);
   return dt.getFullYear()+'/'+String(dt.getMonth()+1).padStart(2,'0')+'/'+String(dt.getDate()).padStart(2,'0');
 }
-function statusClass(s) {
-  return {'下書き':'badge-draft','申請済':'badge-submitted','承認済':'badge-approved','差戻し':'badge-rejected'}[s]||'badge-draft';
-}
 function getApiKey() {
   try { return window.__apiKey || ''; } catch(e) { return ''; }
 }
@@ -302,28 +299,13 @@ export default function ExpensePage() {
       .then(function() { flash('削除'); setDetailEntry(null); loadData(); });
   }
 
-  function handleSubmit() {
-    if (!reportId) return; setSaving(true);
-    supabase.from('expense_monthly_reports')
-      .update({ status: '申請済', submitted_at: new Date().toISOString() }).eq('id', reportId)
-      .then(function() { setStatus('申請済'); flash('申請しました'); })
-      .finally(function() { setSaving(false); });
-  }
-
-  function handleUnsubmit() {
-    if (!reportId) return; setSaving(true);
-    supabase.from('expense_monthly_reports')
-      .update({ status: '下書き', submitted_at: null }).eq('id', reportId)
-      .then(function() { setStatus('下書き'); flash('取り消しました'); })
-      .finally(function() { setSaving(false); });
-  }
 
   function prevMonth(){if(month===1){setMonth(12);setYear(year-1);}else{setMonth(month-1);}}
   function nextMonth(){if(month===12){setMonth(1);setYear(year+1);}else{setMonth(month+1);}}
 
   var grandTotal = 0;
   entries.forEach(function(e){grandTotal += e.amount;});
-  var isEditable = status === '下書き' || status === '差戻し';
+  var isEditable = true;
 
   var checkedIds = Object.keys(checked).filter(function(k){return checked[k];});
   var allChecked = entries.length > 0 && checkedIds.length === entries.length;
@@ -444,14 +426,8 @@ export default function ExpensePage() {
           <button className="btn-icon" onClick={nextMonth}>▶</button>
         </div>
         <div className="header-actions">
-          <span className={'status-badge '+statusClass(status)}>{status}</span>
-          <button className="btn-outline" onClick={function(){exportExpenseExcel(entries,year,month,auth.profile?auth.profile.full_name:'',status);}}>📊 Excel</button>
+          <button className="btn-outline" onClick={function(){exportExpenseExcel(entries,year,month,auth.profile?auth.profile.full_name:'');}}>📊 Excel</button>
           <button className="btn-outline" onClick={function(){openReceiptCompilationPDF(entries,year,month,auth.profile?auth.profile.full_name:'');}}>🧾 領収書PDF</button>
-          {status==='申請済'||status==='承認済' ? (
-            <button className="btn-danger" onClick={handleUnsubmit} disabled={saving||status==='承認済'}>{status==='承認済'?'承認済':'申請取消'}</button>
-          ) : (
-            <button className="btn-submit" onClick={handleSubmit} disabled={saving}>✓ 申請</button>
-          )}
         </div>
       </div>
 

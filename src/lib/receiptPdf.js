@@ -11,23 +11,30 @@ export function openReceiptCompilationPDF(entries, year, month, userName) {
   var html = '<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8">'
     + '<title>領収書一覧 ' + year + '年' + month + '月 - ' + userName + '</title>'
     + '<style>'
-    + '@page{size:A4 portrait;margin:15mm;}'
+    + '@page{size:A4 portrait;margin:10mm;}'
     + '*{margin:0;padding:0;box-sizing:border-box;}'
-    + 'body{font-family:"Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",sans-serif;font-size:11px;color:#1a1a2e;padding:10mm;}'
-    + 'h1{font-size:20px;text-align:center;margin-bottom:10px;letter-spacing:4px;font-weight:800;}'
-    + '.meta{text-align:center;margin-bottom:16px;font-size:12px;color:#64748b;}'
-    + 'table{width:100%;border-collapse:collapse;font-size:10px;margin-bottom:16px;}'
-    + 'th,td{border:1px solid #94a3b8;padding:6px 8px;text-align:center;}'
-    + 'th{background:#1e293b;color:#f1f5f9;font-weight:600;}'
+    + 'body{font-family:"Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",sans-serif;font-size:11px;color:#1a1a2e;padding:8mm;}'
+    + 'h1{font-size:18px;text-align:center;margin-bottom:8px;letter-spacing:4px;font-weight:800;}'
+    + '.meta{text-align:center;margin-bottom:12px;font-size:11px;color:#64748b;}'
+    + 'table{width:100%;border-collapse:collapse;font-size:10px;margin-bottom:12px;}'
+    + 'th,td{border:1px solid #94a3b8;padding:4px 6px;text-align:center;}'
+    + 'th{background:#1e293b;color:#f1f5f9;font-weight:600;-webkit-print-color-adjust:exact;print-color-adjust:exact;}'
     + 'td.left{text-align:left;}'
     + 'td.right{text-align:right;font-weight:600;}'
-    + '.receipt-page{page-break-before:always;}'
-    + '.receipt-header{background:#1e293b;color:#f1f5f9;padding:10px 16px;font-size:13px;font-weight:600;margin-bottom:16px;border-radius:4px;display:flex;justify-content:space-between;align-items:center;}'
-    + '.receipt-header .no{font-size:16px;font-weight:800;}'
+    + '.receipt-page{page-break-before:always;page-break-inside:avoid;}'
+    + '.receipt-header{background:#1e293b;color:#f1f5f9;padding:8px 12px;font-size:12px;font-weight:600;margin-bottom:12px;border-radius:4px;-webkit-print-color-adjust:exact;print-color-adjust:exact;overflow:hidden;}'
+    + '.receipt-header .no{font-size:14px;font-weight:800;float:left;}'
+    + '.receipt-header .info{float:right;}'
+    + '.receipt-header::after{content:"";display:table;clear:both;}'
     + '.receipt-content{text-align:center;}'
-    + '.receipt-content img{max-width:100%;max-height:700px;border:1px solid #e2e8f0;border-radius:4px;}'
-    + '.receipt-content embed{width:100%;height:750px;border:1px solid #e2e8f0;}'
-    + '@media print{body{padding:0;}.receipt-page{page-break-before:always;}}'
+    + '.receipt-content img{max-width:100%;max-height:230mm;object-fit:contain;border:1px solid #e2e8f0;border-radius:4px;}'
+    + '.receipt-content embed{width:100%;height:240mm;border:1px solid #e2e8f0;}'
+    + '@media print{'
+    + '  body{padding:0;}'
+    + '  .receipt-page{page-break-before:always;page-break-inside:avoid;}'
+    + '  .receipt-content img{max-width:100%;max-height:230mm;object-fit:contain;}'
+    + '  .receipt-content embed{width:100%;height:240mm;}'
+    + '}'
     + '</style></head><body>';
 
   // Page 1: Index table
@@ -76,7 +83,7 @@ export function openReceiptCompilationPDF(entries, year, month, userName) {
     html += '<div class="receipt-page">';
     html += '<div class="receipt-header">';
     html += '<span class="no">No.' + (j + 1) + '</span>';
-    html += '<span>' + fmtDate(entry.expense_date) + ' — ' + entry.category + ' — &yen;' + entry.amount.toLocaleString() + '</span>';
+    html += '<span class="info">' + fmtDate(entry.expense_date) + ' — ' + entry.category + ' — &yen;' + entry.amount.toLocaleString() + '</span>';
     html += '</div>';
     html += '<div class="receipt-content">';
 
@@ -115,7 +122,7 @@ export function openReceiptCompilationPDF(entries, year, month, userName) {
     html += '    for (var i = 0; i < binary.length; i++) arr[i] = binary.charCodeAt(i);';
     html += '    var blob = new Blob([arr], { type: "application/pdf" });';
     html += '    var url = URL.createObjectURL(blob);';
-    html += '    container.innerHTML = \'<embed src="\' + url + \'" type="application/pdf" style="width:100%;height:750px;border:1px solid #e2e8f0;" />\';';
+    html += '    container.innerHTML = \'<embed src="\' + url + \'" type="application/pdf" style="width:100%;height:240mm;border:1px solid #e2e8f0;" />\';';
     html += '  } catch(err) { console.error(err); }';
     html += '});';
   }

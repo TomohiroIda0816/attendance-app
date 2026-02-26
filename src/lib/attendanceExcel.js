@@ -40,7 +40,7 @@ function headerCell(v) {
   return cell(v, { fill: HEADER_FILL, font: HEADER_FONT, alignment: { horizontal: 'center', vertical: 'center' } });
 }
 
-export function exportAttendanceExcel(rows, year, month, userName, status, transportEntries) {
+export function exportAttendanceExcel(rows, year, month, userName, transportEntries) {
   transportEntries = transportEntries || [];
   var th = totalHours(rows);
   var wd = workDayCount(rows);
@@ -65,7 +65,7 @@ export function exportAttendanceExcel(rows, year, month, userName, status, trans
     cell(''),
     cell(''),
     cell(''),
-    cell(status || '下書き', { font: { bold: true, sz: 11 }, alignment: { horizontal: 'right' } }),
+    cell(''),
   ]);
   wsData.push([]); // blank row
 
@@ -111,16 +111,18 @@ export function exportAttendanceExcel(rows, year, month, userName, status, trans
 
   var ws = XLSX.utils.aoa_to_sheet(wsData);
 
-  // Merge title cell
+  // Merge cells
   ws['!merges'] = [
-    { s: { r: 0, c: 0 }, e: { r: 0, c: 9 } },
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 9 } },  // Title
+    { s: { r: 1, c: 0 }, e: { r: 1, c: 3 } },   // Name
+    { s: { r: 1, c: 4 }, e: { r: 1, c: 9 } },   // Year/Month
   ];
 
   // Column widths
   ws['!cols'] = [
-    { wch: 4 }, { wch: 5 }, { wch: 10 }, { wch: 7 },
-    { wch: 7 }, { wch: 7 }, { wch: 7 }, { wch: 7 },
-    { wch: 7 }, { wch: 30 },
+    { wch: 5 }, { wch: 5 }, { wch: 12 }, { wch: 8 },
+    { wch: 8 }, { wch: 8 }, { wch: 8 }, { wch: 8 },
+    { wch: 8 }, { wch: 30 },
   ];
 
   XLSX.utils.book_append_sheet(wb, ws, '勤怠報告書');

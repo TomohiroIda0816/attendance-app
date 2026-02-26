@@ -18,10 +18,6 @@ export default function MonthsPage({ onNavigate }) {
       .finally(function() { setLoading(false); });
   }, [auth.user]);
 
-  function statusClass(s) {
-    return { '下書き': 'badge-draft', '申請済': 'badge-submitted', '承認済': 'badge-approved', '差戻し': 'badge-rejected' }[s] || 'badge-draft';
-  }
-
   if (loading) return (<div className="page-loading"><div className="spinner"></div><span>読み込み中...</span></div>);
 
   return (
@@ -39,7 +35,6 @@ export default function MonthsPage({ onNavigate }) {
                     <span className="month-item-label">{r.year}年{r.month}月</span>
                   </div>
                   <div className="month-item-right">
-                    <span className={'status-badge ' + statusClass(r.status)}>{r.status}</span>
                     <span className="month-item-arrow">→</span>
                   </div>
                 </div>
