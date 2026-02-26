@@ -44,12 +44,8 @@ export function openReceiptCompilationPDF(entries, year, month, userName) {
     + '.receipt-header .info{float:right;font-size:10px;}'
     + '.receipt-header::after{content:"";display:table;clear:both;}'
     + '.receipt-content{text-align:center;}'
-    + '.receipt-content img{display:block;margin:0 auto;max-width:100%;width:auto;height:auto;object-fit:contain;border:1px solid #e2e8f0;border-radius:4px;}'
+    + '.receipt-content img{display:block;margin:0 auto;border:1px solid #e2e8f0;border-radius:4px;}'
     + '.pdf-loading{text-align:center;color:#64748b;padding:40px 20px;font-size:13px;}'
-    + '@media print{'
-    + '  body{padding:0;}'
-    + '  .receipt-page{page-break-before:always;}'
-    + '}'
     + '</style></head><body>';
 
   // Page 1: Index table
@@ -102,7 +98,6 @@ export function openReceiptCompilationPDF(entries, year, month, userName) {
     html += '<div class="receipt-content">';
 
     if (isPdf) {
-      // PDF receipts: placeholder that will be replaced with rendered image
       html += '<div id="pdf-container-' + j + '" class="pdf-loading">PDF領収書を画像に変換中...</div>';
     } else {
       html += '<img src="data:image/png;base64,' + entry.receipt_data + '" alt="領収書 No.' + (j + 1) + '" />';
@@ -110,21 +105,37 @@ export function openReceiptCompilationPDF(entries, year, month, userName) {
     html += '</div></div>';
   }
 
-  // Script: render PDF pages to canvas → PNG image, resize all images to fit A4, then auto-print
+  // Script
   html += '<script>';
+  html += 'var MAX_IMG_W = 680, MAX_IMG_H = 880;';
+
+  // resizeAllImages: set explicit width/height attributes on every receipt image
+  // so the browser print engine knows the exact layout size
+  html += 'function resizeAllImages() {';
+  html += '  var imgs = document.querySelectorAll(".receipt-content img");';
+  html += '  for (var i = 0; i < imgs.length; i++) {';
+  html += '    var img = imgs[i];';
+  html += '    var natW = img.naturalWidth || img.width;';
+  html += '    var natH = img.naturalHeight || img.height;';
+  html += '    if (natW <= 0 || natH <= 0) continue;';
+  html += '    var ratio = Math.min(MAX_IMG_W / natW, MAX_IMG_H / natH, 1);';
+  html += '    img.width = Math.round(natW * ratio);';
+  html += '    img.height = Math.round(natH * ratio);';
+  html += '    img.style.maxWidth = "100%";';
+  html += '  }';
+  html += '}';
+
   html += 'window.onload = function() {';
 
   if (hasPdf) {
-    // Pass PDF entry data to the script
     html += 'var pdfEntries = ' + JSON.stringify(entries.map(function(e, idx) {
       var ip = !!(e.receipt_filename && e.receipt_filename.toLowerCase().endsWith('.pdf'));
       return { idx: idx, isPdf: ip, data: ip ? e.receipt_data : null };
     })) + ';';
 
-    // Configure pdf.js worker
     html += 'pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";';
 
-    // Function to render a single PDF entry to images
+    // Render PDF to canvas at exactly the target display size (no excess pixels)
     html += 'function renderPdf(entry) {';
     html += '  if (!entry.isPdf || !entry.data) return Promise.resolve();';
     html += '  var container = document.getElementById("pdf-container-" + entry.idx);';
@@ -138,28 +149,24 @@ export function openReceiptCompilationPDF(entries, year, month, userName) {
     html += '      for (var p = 1; p <= pdf.numPages; p++) {';
     html += '        promises.push((function(pageNum) {';
     html += '          return pdf.getPage(pageNum).then(function(page) {';
-    // Render at a reasonable size: max 700px width, max 990px height (fits A4 minus header)
-    html += '            var maxW = 700, maxH = 990;';
     html += '            var vp1 = page.getViewport({ scale: 1.0 });';
-    html += '            var scaleW = maxW / vp1.width;';
-    html += '            var scaleH = maxH / vp1.height;';
-    html += '            var scale = Math.min(scaleW, scaleH);';
+    html += '            var scale = Math.min(MAX_IMG_W / vp1.width, MAX_IMG_H / vp1.height);';
     html += '            var viewport = page.getViewport({ scale: scale });';
     html += '            var canvas = document.createElement("canvas");';
-    html += '            canvas.width = viewport.width;';
-    html += '            canvas.height = viewport.height;';
+    html += '            canvas.width = Math.round(viewport.width);';
+    html += '            canvas.height = Math.round(viewport.height);';
     html += '            var ctx = canvas.getContext("2d");';
     html += '            return page.render({ canvasContext: ctx, viewport: viewport }).promise.then(function() {';
-    html += '              return canvas.toDataURL("image/png");';
+    html += '              return { url: canvas.toDataURL("image/png"), w: canvas.width, h: canvas.height };';
     html += '            });';
     html += '          });';
     html += '        })(p));';
     html += '      }';
-    html += '      return Promise.all(promises).then(function(dataUrls) {';
+    html += '      return Promise.all(promises).then(function(pages) {';
     html += '        var h = "";';
-    html += '        dataUrls.forEach(function(url, i) {';
+    html += '        pages.forEach(function(pg, i) {';
     html += '          if (i > 0) h += "<div style=\\"height:4px\\"></div>";';
-    html += '          h += \'<img src="\' + url + \'" alt="PDF page \' + (i+1) + \'" style="max-height:990px;" />\';';
+    html += '          h += \'<img src="\' + pg.url + \'" width="\' + pg.w + \'" height="\' + pg.h + \'" alt="PDF page \' + (i+1) + \'" />\';';
     html += '        });';
     html += '        container.innerHTML = h;';
     html += '      });';
@@ -171,32 +178,22 @@ export function openReceiptCompilationPDF(entries, year, month, userName) {
     html += '  }';
     html += '}';
 
-    // Render all PDFs sequentially, then resize all images and print
     html += 'var chain = Promise.resolve();';
     html += 'pdfEntries.forEach(function(e) {';
     html += '  chain = chain.then(function() { return renderPdf(e); });';
     html += '});';
     html += 'chain.then(function() {';
     html += '  resizeAllImages();';
-    html += '  setTimeout(function(){ window.print(); }, 300);';
+    html += '  setTimeout(function(){ window.print(); }, 500);';
     html += '}).catch(function(err) {';
     html += '  console.error(err);';
     html += '  resizeAllImages();';
-    html += '  setTimeout(function(){ window.print(); }, 300);';
+    html += '  setTimeout(function(){ window.print(); }, 500);';
     html += '});';
   } else {
-    // No PDFs, resize images and print
     html += 'resizeAllImages();';
-    html += 'setTimeout(function(){ window.print(); }, 300);';
+    html += 'setTimeout(function(){ window.print(); }, 500);';
   }
-
-  // Function to enforce max pixel height on all receipt images so they fit in one A4 page with header
-  html += 'function resizeAllImages() {';
-  html += '  var imgs = document.querySelectorAll(".receipt-content img");';
-  html += '  for (var i = 0; i < imgs.length; i++) {';
-  html += '    imgs[i].style.maxHeight = "990px";';
-  html += '  }';
-  html += '}';
 
   html += '};';
   html += '<\/script>';
