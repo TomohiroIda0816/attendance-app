@@ -38,18 +38,18 @@ export function openReceiptCompilationPDF(entries, year, month, userName) {
     + 'th{background:#1e293b;color:#f1f5f9;font-weight:600;-webkit-print-color-adjust:exact;print-color-adjust:exact;}'
     + 'td.left{text-align:left;}'
     + 'td.right{text-align:right;font-weight:600;}'
-    + '.receipt-page{page-break-before:always;page-break-inside:avoid;}'
-    + '.receipt-header{background:#1e293b;color:#f1f5f9;padding:8px 12px;font-size:12px;font-weight:600;margin-bottom:12px;border-radius:4px;-webkit-print-color-adjust:exact;print-color-adjust:exact;overflow:hidden;}'
+    + '.receipt-page{page-break-before:always;}'
+    + '.receipt-header{background:#1e293b;color:#f1f5f9;padding:6px 12px;font-size:12px;font-weight:600;margin-bottom:4px;border-radius:4px;-webkit-print-color-adjust:exact;print-color-adjust:exact;overflow:hidden;}'
     + '.receipt-header .no{font-size:14px;font-weight:800;float:left;}'
     + '.receipt-header .info{float:right;font-size:11px;}'
     + '.receipt-header::after{content:"";display:table;clear:both;}'
     + '.receipt-content{text-align:center;}'
-    + '.receipt-content img{display:block;margin:0 auto;max-width:100%;height:auto;max-height:250mm;object-fit:contain;border:1px solid #e2e8f0;border-radius:4px;}'
+    + '.receipt-content img{display:block;margin:0 auto;max-width:100%;max-height:260mm;width:auto;height:auto;object-fit:contain;border:1px solid #e2e8f0;border-radius:4px;}'
     + '.pdf-loading{text-align:center;color:#64748b;padding:40px 20px;font-size:13px;}'
     + '@media print{'
     + '  body{padding:0;}'
-    + '  .receipt-page{page-break-before:always;page-break-inside:avoid;}'
-    + '  .receipt-content img{max-width:100%;max-height:260mm;object-fit:contain;}'
+    + '  .receipt-page{page-break-before:always;}'
+    + '  .receipt-content img{max-width:100%;max-height:260mm;}'
     + '}'
     + '</style></head><body>';
 
@@ -139,8 +139,10 @@ export function openReceiptCompilationPDF(entries, year, month, userName) {
     html += '      for (var p = 1; p <= pdf.numPages; p++) {';
     html += '        promises.push((function(pageNum) {';
     html += '          return pdf.getPage(pageNum).then(function(page) {';
-    // Scale to fit ~170mm width at 2x resolution for clarity
-    html += '            var scale = 2.0;';
+    // Scale to fit A4 width (~720px at 96dpi) for print
+    html += '            var desiredWidth = 760;';
+    html += '            var defaultViewport = page.getViewport({ scale: 1.0 });';
+    html += '            var scale = desiredWidth / defaultViewport.width;';
     html += '            var viewport = page.getViewport({ scale: scale });';
     html += '            var canvas = document.createElement("canvas");';
     html += '            canvas.width = viewport.width;';
