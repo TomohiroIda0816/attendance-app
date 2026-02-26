@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../components/AuthProvider';
-import { openExpensePDF } from '../lib/expensePdf';
+import { exportExpenseExcel } from '../lib/expenseExcel';
+import { openReceiptCompilationPDF } from '../lib/receiptPdf';
 
 var CATEGORIES = ['旅費交通費', '書籍代', 'その他'];
 var METHODS = ['タクシー', '飛行機', '新幹線', 'その他'];
@@ -444,7 +445,8 @@ export default function ExpensePage() {
         </div>
         <div className="header-actions">
           <span className={'status-badge '+statusClass(status)}>{status}</span>
-          <button className="btn-outline" onClick={function(){openExpensePDF(entries,year,month,auth.profile?auth.profile.full_name:'',status);}}>📄 PDF</button>
+          <button className="btn-outline" onClick={function(){exportExpenseExcel(entries,year,month,auth.profile?auth.profile.full_name:'',status);}}>📊 Excel</button>
+          <button className="btn-outline" onClick={function(){openReceiptCompilationPDF(entries,year,month,auth.profile?auth.profile.full_name:'');}}>🧾 領収書PDF</button>
           {status==='申請済'||status==='承認済' ? (
             <button className="btn-danger" onClick={handleUnsubmit} disabled={saving||status==='承認済'}>{status==='承認済'?'承認済':'申請取消'}</button>
           ) : (

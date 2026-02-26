@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../components/AuthProvider';
-import { openTripPDF } from '../lib/tripPdf';
+import { exportTripExcel } from '../lib/tripExcel';
 
 var LUNCH = 1500;
 var DINNER = 2000;
@@ -92,7 +92,7 @@ export default function TripAdminPage() {
             {rpt.status==='差戻し' && (
               <button className="btn-submit" onClick={function(){updateStatus(rpt.id,'承認済');}}>✓ 承認</button>
             )}
-            <button className="btn-outline" onClick={function(){openTripPDF(ent,year,month,u.full_name,rpt.status);}}>📄 PDF</button>
+            <button className="btn-outline" onClick={function(){exportTripExcel(ent,year,month,u.full_name,rpt.status);}}>📊 Excel</button>
           </div>
         </div>
 

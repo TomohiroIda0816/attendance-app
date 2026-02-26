@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../components/AuthProvider';
-import { openPrintPDF } from '../lib/pdf';
+import { exportAttendanceExcel } from '../lib/attendanceExcel';
 import AttendanceTable from '../components/AttendanceTable';
 
 export default function AdminPage() {
@@ -164,7 +164,7 @@ export default function AdminPage() {
             {(rpt.status === '申請済' || rpt.status === '承認済') && (
               <button className="btn-danger" onClick={function() { setShowReject(!showReject); setEditing(false); }}>✗ 差戻し</button>
             )}
-            <button className="btn-outline" onClick={function() { openPrintPDF(detailView.rows, year, month, u.full_name, rpt.status, transportEntries); }}>📄 PDF</button>
+            <button className="btn-outline" onClick={function() { exportAttendanceExcel(detailView.rows, year, month, u.full_name, rpt.status, transportEntries); }}>📊 Excel</button>
           </div>
         </div>
 
