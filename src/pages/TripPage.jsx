@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../components/AuthProvider';
-import { openTripPDF } from '../lib/tripPdf';
+import { exportTripExcel } from '../lib/tripExcel';
 
 var LUNCH = 1500;
 var DINNER = 2000;
@@ -147,7 +147,7 @@ export default function TripPage() {
         </div>
         <div className="header-actions">
           <span className={'status-badge '+statusClass(status)}>{status}</span>
-          <button className="btn-outline" onClick={function(){openTripPDF(entries,year,month,auth.profile?auth.profile.full_name:'',status);}}>📄 PDF</button>
+          <button className="btn-outline" onClick={function(){exportTripExcel(entries,year,month,auth.profile?auth.profile.full_name:'',status);}}>📊 Excel</button>
           {status==='申請済'||status==='承認済' ? (
             <button className="btn-danger" onClick={handleUnsubmit} disabled={saving||status==='承認済'}>{status==='承認済'?'承認済':'申請取消'}</button>
           ) : (

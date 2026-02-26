@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../components/AuthProvider';
-import { openExpensePDF } from '../lib/expensePdf';
+import { exportExpenseExcel } from '../lib/expenseExcel';
+import { openReceiptCompilationPDF } from '../lib/receiptPdf';
 
 function fmtDate(d) {
   if (!d) return '';
@@ -169,7 +170,8 @@ export default function ExpenseAdminPage() {
             {(rpt.status==='申請済' || rpt.status==='承認済') && (
               <button className="btn-danger" onClick={function(){updateStatus(rpt.id,'差戻し');}}>✗ 差戻し</button>
             )}
-            <button className="btn-outline" onClick={function(){openExpensePDF(ent,year,month,u.full_name,rpt.status);}}>📄 PDF</button>
+            <button className="btn-outline" onClick={function(){exportExpenseExcel(ent,year,month,u.full_name,rpt.status);}}>📊 Excel</button>
+            <button className="btn-outline" onClick={function(){openReceiptCompilationPDF(ent,year,month,u.full_name);}}>🧾 領収書PDF</button>
           </div>
         </div>
         {ent.length===0 ? (

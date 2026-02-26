@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../components/AuthProvider';
 import { generateMonthRows, calcWorkHours, TIME_OPTIONS, DEDUCTION_OPTIONS } from '../lib/utils';
-import { openPrintPDF } from '../lib/pdf';
+import { exportAttendanceExcel } from '../lib/attendanceExcel';
 import AttendanceTable from '../components/AttendanceTable';
 import TransportExpensePage from './TransportExpensePage';
 
@@ -228,7 +228,7 @@ export default function AttendancePage() {
         <div className="header-actions">
           <span className={'status-badge ' + statusClass}>{status}</span>
           <button className="btn-outline" onClick={handleRegenerate} disabled={saving}>🔄 再生成</button>
-          <button className="btn-outline" onClick={function() { openPrintPDF(rows, year, month, auth.profile ? auth.profile.full_name : '', status, transportEntries); }}>📄 PDF</button>
+          <button className="btn-outline" onClick={function() { exportAttendanceExcel(rows, year, month, auth.profile ? auth.profile.full_name : '', status, transportEntries); }}>📊 Excel</button>
           {status === '申請済' || status === '承認済' ? (
             <button className="btn-danger" onClick={handleUnsubmit} disabled={saving || status === '承認済'}>{status === '承認済' ? '承認済' : '申請取消'}</button>
           ) : (

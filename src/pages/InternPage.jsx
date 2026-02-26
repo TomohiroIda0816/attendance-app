@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../components/AuthProvider';
-import { openInternAttendancePDF, openInternDailyPDF } from '../lib/internPdf';
+import { exportInternAttendanceExcel, exportInternDailyExcel } from '../lib/internExcel';
 
 var DOW = ['日','月','火','水','木','金','土'];
 
@@ -168,9 +168,9 @@ export default function InternPage() {
         <div className="header-actions">
           <span className="intern-summary">{reports.length}日出勤 / 合計 {totalH}</span>
           <button className="btn-outline" onClick={function(){
-            if (tab==='attendance') openInternAttendancePDF(reports, year, month, userName);
-            else openInternDailyPDF(reports, year, month, userName);
-          }}>📄 PDF</button>
+            if (tab==='attendance') exportInternAttendanceExcel(reports, year, month, userName);
+            else exportInternDailyExcel(reports, year, month, userName);
+          }}>📊 Excel</button>
         </div>
       </div>
 
