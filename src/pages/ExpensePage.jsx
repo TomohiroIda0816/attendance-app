@@ -26,6 +26,17 @@ function getDetail(e) {
   if (e.category==='書籍代'&&e.book_title) return e.book_title;
   return e.description;
 }
+function getMissingFieldWarnings(e) {
+  var warnings = [];
+  if (e.category==='旅費交通費') {
+    if (!e.travel_from) warnings.push('出発地を入力してください！');
+    if (!e.travel_to) warnings.push('到着地を入力してください！');
+  }
+  if (e.category==='書籍代') {
+    if (!e.book_title) warnings.push('書籍名を入力してください！');
+  }
+  return warnings;
+}
 function fileToBase64(file) {
   return new Promise(function(resolve, reject) {
     var r = new FileReader();
@@ -388,7 +399,22 @@ export default function ExpensePage() {
             {de.category==='旅費交通費'&&de.travel_from&&(<div className="trip-detail-item"><span className="trip-detail-label">区間</span><span className="trip-detail-value">{de.travel_from} → {de.travel_to}</span></div>)}
             {de.category==='旅費交通費'&&de.travel_method&&(<div className="trip-detail-item"><span className="trip-detail-label">交通手段</span><span className="trip-detail-value">{de.travel_method}</span></div>)}
             {de.category==='旅費交通費'&&de.trip_type&&(<div className="trip-detail-item"><span className="trip-detail-label">片道/往復</span><span className="trip-detail-value">{de.trip_type}</span></div>)}
+            {de.category==='旅費交通費'&&(!de.travel_from||!de.travel_to)&&(
+              <div className="trip-detail-item" style={{gridColumn:'1/-1'}}>
+                <div className="missing-field-warning-box">
+                  {!de.travel_from && <div className="missing-field-warning-detail">⚠️ 出発地を入力してください！</div>}
+                  {!de.travel_to && <div className="missing-field-warning-detail">⚠️ 到着地を入力してください！</div>}
+                </div>
+              </div>
+            )}
             {de.category==='書籍代'&&de.book_title&&(<div className="trip-detail-item"><span className="trip-detail-label">書籍名</span><span className="trip-detail-value">{de.book_title}</span></div>)}
+            {de.category==='書籍代'&&!de.book_title&&(
+              <div className="trip-detail-item" style={{gridColumn:'1/-1'}}>
+                <div className="missing-field-warning-box">
+                  <div className="missing-field-warning-detail">⚠️ 書籍名を入力してください！</div>
+                </div>
+              </div>
+            )}
             {de.category!=='旅費交通費'&&de.description&&(<div className="trip-detail-item"><span className="trip-detail-label">内容</span><span className="trip-detail-value">{de.description}</span></div>)}
             {de.receipt_data && (<div className="trip-detail-item"><span className="trip-detail-label">インボイス番号</span><span className="trip-detail-value">{de.invoice_number ? de.invoice_number : <span className="invoice-warning-inline">⚠️ 未登録</span>}</span></div>)}
           </div>
@@ -633,6 +659,7 @@ export default function ExpensePage() {
               </tr></thead>
               <tbody>
                 {entries.map(function(e){
+                  var rowWarnings = getMissingFieldWarnings(e);
                   return (
                     <tr key={e.id} className={'admin-table-row'+(checked[e.id]?' row-checked':'')} style={{cursor:'pointer'}} onClick={function(){setDetailEntry(e);}}>
                       {isEditable && (
@@ -642,7 +669,7 @@ export default function ExpensePage() {
                       )}
                       <td style={{textAlign:'center'}}>{fmtDate(e.expense_date)}</td>
                       <td style={{textAlign:'center'}}><span className={'expense-cat expense-cat-'+e.category}>{e.category}</span></td>
-                      <td style={{textAlign:'left'}}>{getDetail(e)}</td>
+                      <td style={{textAlign:'left'}}>{getDetail(e)}{rowWarnings.length > 0 && <div className="missing-field-warning">{rowWarnings.join(' / ')}</div>}</td>
                       <td style={{textAlign:'center'}}>{e.receipt_data ? (e.invoice_number ? '📎' : '⚠️') : ''}</td>
                       <td style={{textAlign:'center',fontSize:'11px',fontFamily:'var(--mono)'}}>{e.invoice_number || (e.receipt_data ? <span className="invoice-warning-inline">未登録</span> : '')}</td>
                       <td style={{textAlign:'right',fontFamily:'var(--mono)',fontWeight:600}}>¥{e.amount.toLocaleString()}</td>
