@@ -39,17 +39,16 @@ export function openReceiptCompilationPDF(entries, year, month, userName) {
     + 'td.left{text-align:left;}'
     + 'td.right{text-align:right;font-weight:600;}'
     + '.receipt-page{page-break-before:always;}'
-    + '.receipt-header{background:#1e293b;color:#f1f5f9;padding:6px 12px;font-size:12px;font-weight:600;margin-bottom:4px;border-radius:4px;-webkit-print-color-adjust:exact;print-color-adjust:exact;overflow:hidden;}'
-    + '.receipt-header .no{font-size:14px;font-weight:800;float:left;}'
-    + '.receipt-header .info{float:right;font-size:11px;}'
+    + '.receipt-header{background:#1e293b;color:#f1f5f9;padding:6px 10px;font-size:11px;font-weight:600;margin-bottom:2px;border-radius:3px;-webkit-print-color-adjust:exact;print-color-adjust:exact;overflow:hidden;}'
+    + '.receipt-header .no{font-size:12px;font-weight:800;float:left;}'
+    + '.receipt-header .info{float:right;font-size:10px;}'
     + '.receipt-header::after{content:"";display:table;clear:both;}'
     + '.receipt-content{text-align:center;}'
-    + '.receipt-content img{display:block;margin:0 auto;max-width:100%;max-height:260mm;width:auto;height:auto;object-fit:contain;border:1px solid #e2e8f0;border-radius:4px;}'
+    + '.receipt-content img{display:block;margin:0 auto;max-width:100%;width:auto;height:auto;object-fit:contain;border:1px solid #e2e8f0;border-radius:4px;}'
     + '.pdf-loading{text-align:center;color:#64748b;padding:40px 20px;font-size:13px;}'
     + '@media print{'
     + '  body{padding:0;}'
     + '  .receipt-page{page-break-before:always;}'
-    + '  .receipt-content img{max-width:100%;max-height:260mm;}'
     + '}'
     + '</style></head><body>';
 
@@ -111,7 +110,7 @@ export function openReceiptCompilationPDF(entries, year, month, userName) {
     html += '</div></div>';
   }
 
-  // Script: render PDF pages to canvas → PNG image, then auto-print
+  // Script: render PDF pages to canvas → PNG image, resize all images to fit A4, then auto-print
   html += '<script>';
   html += 'window.onload = function() {';
 
@@ -139,10 +138,12 @@ export function openReceiptCompilationPDF(entries, year, month, userName) {
     html += '      for (var p = 1; p <= pdf.numPages; p++) {';
     html += '        promises.push((function(pageNum) {';
     html += '          return pdf.getPage(pageNum).then(function(page) {';
-    // Scale to fit A4 width (~720px at 96dpi) for print
-    html += '            var desiredWidth = 760;';
-    html += '            var defaultViewport = page.getViewport({ scale: 1.0 });';
-    html += '            var scale = desiredWidth / defaultViewport.width;';
+    // Render at a reasonable size: max 700px width, max 990px height (fits A4 minus header)
+    html += '            var maxW = 700, maxH = 990;';
+    html += '            var vp1 = page.getViewport({ scale: 1.0 });';
+    html += '            var scaleW = maxW / vp1.width;';
+    html += '            var scaleH = maxH / vp1.height;';
+    html += '            var scale = Math.min(scaleW, scaleH);';
     html += '            var viewport = page.getViewport({ scale: scale });';
     html += '            var canvas = document.createElement("canvas");';
     html += '            canvas.width = viewport.width;';
@@ -155,12 +156,12 @@ export function openReceiptCompilationPDF(entries, year, month, userName) {
     html += '        })(p));';
     html += '      }';
     html += '      return Promise.all(promises).then(function(dataUrls) {';
-    html += '        var html = "";';
+    html += '        var h = "";';
     html += '        dataUrls.forEach(function(url, i) {';
-    html += '          if (i > 0) html += "<div style=\\"height:8px\\"></div>";';
-    html += '          html += \'<img src="\' + url + \'" alt="PDF page \' + (i+1) + \'" />\';';
+    html += '          if (i > 0) h += "<div style=\\"height:4px\\"></div>";';
+    html += '          h += \'<img src="\' + url + \'" alt="PDF page \' + (i+1) + \'" style="max-height:990px;" />\';';
     html += '        });';
-    html += '        container.innerHTML = html;';
+    html += '        container.innerHTML = h;';
     html += '      });';
     html += '    });';
     html += '  } catch(err) {';
@@ -170,21 +171,32 @@ export function openReceiptCompilationPDF(entries, year, month, userName) {
     html += '  }';
     html += '}';
 
-    // Render all PDFs sequentially, then print
+    // Render all PDFs sequentially, then resize all images and print
     html += 'var chain = Promise.resolve();';
     html += 'pdfEntries.forEach(function(e) {';
     html += '  chain = chain.then(function() { return renderPdf(e); });';
     html += '});';
     html += 'chain.then(function() {';
+    html += '  resizeAllImages();';
     html += '  setTimeout(function(){ window.print(); }, 300);';
     html += '}).catch(function(err) {';
     html += '  console.error(err);';
+    html += '  resizeAllImages();';
     html += '  setTimeout(function(){ window.print(); }, 300);';
     html += '});';
   } else {
-    // No PDFs, just print directly
+    // No PDFs, resize images and print
+    html += 'resizeAllImages();';
     html += 'setTimeout(function(){ window.print(); }, 300);';
   }
+
+  // Function to enforce max pixel height on all receipt images so they fit in one A4 page with header
+  html += 'function resizeAllImages() {';
+  html += '  var imgs = document.querySelectorAll(".receipt-content img");';
+  html += '  for (var i = 0; i < imgs.length; i++) {';
+  html += '    imgs[i].style.maxHeight = "990px";';
+  html += '  }';
+  html += '}';
 
   html += '};';
   html += '<\/script>';
