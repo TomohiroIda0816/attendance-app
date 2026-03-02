@@ -6,6 +6,8 @@ import { openReceiptCompilationPDF } from '../lib/receiptPdf';
 
 var CATEGORIES = ['旅費交通費', '書籍代', 'その他'];
 var METHODS = ['タクシー', '飛行機', '新幹線', 'その他'];
+var TRANSPORT_METHODS = ['電車', 'バス'];
+var DOW = ['日','月','火','水','木','金','土'];
 
 function fmtDate(d) {
   if (!d) return '';
@@ -26,6 +28,9 @@ function getDetail(e) {
   if (e.category==='書籍代'&&e.book_title) return e.book_title;
   return e.description;
 }
+function isTransportEntry(e) {
+  return e.category === '旅費交通費' && (e.travel_method === '電車' || e.travel_method === 'バス');
+}
 function getMissingFieldWarnings(e) {
   var warnings = [];
   if (e.category==='旅費交通費') {
@@ -42,9 +47,14 @@ function extractNoReceiptReason(desc) {
   var m = desc.match(/【領収書なし理由: (.+?)】/);
   return m ? m[1] : '';
 }
+function extractNoInvoiceReason(desc) {
+  if (!desc) return '';
+  var m = desc.match(/【インボイス番号なし理由: (.+?)】/);
+  return m ? m[1] : '';
+}
 function hasNoInvoiceApproval(desc) {
   if (!desc) return false;
-  return desc.indexOf('【インボイス番号なし: 責任者了承済】') >= 0;
+  return desc.indexOf('【インボイス番号なし: 責任者了承済】') >= 0 || desc.indexOf('【インボイス番号なし理由:') >= 0;
 }
 function fileToBase64(file) {
   return new Promise(function(resolve, reject) {
@@ -78,6 +88,35 @@ function analyzeOneReceipt(base64, mediaType, apiKey) {
   });
 }
 
+// カレンダーコンポーネント
+function DateCalendar(props) {
+  var yr = props.year, mo = props.month, selected = props.selected, onToggle = props.onToggle;
+  var firstDay = new Date(yr, mo - 1, 1).getDay();
+  var daysInMonth = new Date(yr, mo, 0).getDate();
+  var cells = [];
+  for (var i = 0; i < firstDay; i++) cells.push(null);
+  for (var d = 1; d <= daysInMonth; d++) cells.push(d);
+  var selSet = {};
+  selected.forEach(function(s) { selSet[s] = true; });
+  return (
+    <div className="date-calendar">
+      <div className="cal-header-row">
+        {DOW.map(function(d, i) { return <div key={i} className={'cal-dow' + (i===0?' cal-sun':'') + (i===6?' cal-sat':'')}>{d}</div>; })}
+      </div>
+      <div className="cal-grid">
+        {cells.map(function(day, i) {
+          if (day === null) return <div key={'e'+i} className="cal-cell cal-empty"></div>;
+          var dateStr = yr + '-' + String(mo).padStart(2,'0') + '-' + String(day).padStart(2,'0');
+          var isSelected = !!selSet[dateStr];
+          var dow = new Date(yr, mo-1, day).getDay();
+          var cls = 'cal-cell cal-day' + (isSelected ? ' cal-selected' : '') + (dow===0?' cal-sun':'') + (dow===6?' cal-sat':'');
+          return <div key={day} className={cls} onClick={function(){onToggle(dateStr);}}>{day}</div>;
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function ExpensePage() {
   var auth = useAuth();
   var now = new Date();
@@ -87,7 +126,8 @@ export default function ExpensePage() {
   var _st = useState('下書き'), status = _st[0], setStatus = _st[1];
   var _entries = useState([]), entries = _entries[0], setEntries = _entries[1];
   var _ld = useState(true), loading = _ld[0], setLoading = _ld[1];
-  // 領収書フォーム
+
+  // --- 領収書経費フォーム ---
   var _show = useState(false), showForm = _show[0], setShowForm = _show[1];
   var _editId = useState(null), editId = _editId[0], setEditId = _editId[1];
   var _date = useState(''), expDate = _date[0], setExpDate = _date[1];
@@ -106,9 +146,8 @@ export default function ExpensePage() {
   var _invoiceNum = useState(''), invoiceNum = _invoiceNum[0], setInvoiceNum = _invoiceNum[1];
   var _noReceiptReason = useState(''), noReceiptReason = _noReceiptReason[0], setNoReceiptReason = _noReceiptReason[1];
   var _noReceiptMode = useState(false), noReceiptMode = _noReceiptMode[0], setNoReceiptMode = _noReceiptMode[1];
-  var _noReceiptApproved = useState(false), noReceiptApproved = _noReceiptApproved[0], setNoReceiptApproved = _noReceiptApproved[1];
   var _noInvoiceMode = useState(false), noInvoiceMode = _noInvoiceMode[0], setNoInvoiceMode = _noInvoiceMode[1];
-  var _noInvoiceApproved = useState(false), noInvoiceApproved = _noInvoiceApproved[0], setNoInvoiceApproved = _noInvoiceApproved[1];
+  var _noInvoiceReason = useState(''), noInvoiceReason = _noInvoiceReason[0], setNoInvoiceReason = _noInvoiceReason[1];
   var _purchaseApproved = useState(false), purchaseApproved = _purchaseApproved[0], setPurchaseApproved = _purchaseApproved[1];
   var _saving = useState(false), saving = _saving[0], setSaving = _saving[1];
   var _uploading = useState(false), uploading = _uploading[0], setUploading = _uploading[1];
@@ -117,7 +156,20 @@ export default function ExpensePage() {
   var _detail = useState(null), detailEntry = _detail[0], setDetailEntry = _detail[1];
   var _checked = useState({}), checked = _checked[0], setChecked = _checked[1];
   var fileRef = useRef(null);
-  var batchRef = useRef(null);
+
+  // --- 交通費フォーム ---
+  var _showTransport = useState(false), showTransport = _showTransport[0], setShowTransport = _showTransport[1];
+  var _tMeth = useState('電車'), tMeth = _tMeth[0], setTMeth = _tMeth[1];
+  var _tF = useState(''), tF = _tF[0], setTF = _tF[1];
+  var _tT = useState(''), tT = _tT[0], setTT = _tT[1];
+  var _tTy = useState('片道'), tTy = _tTy[0], setTTy = _tTy[1];
+  var _tAm = useState(''), tAm = _tAm[0], setTAm = _tAm[1];
+  var _tEditId = useState(null), tEditId = _tEditId[0], setTEditId = _tEditId[1];
+  var _tEditDate = useState(''), tEditDate = _tEditDate[0], setTEditDate = _tEditDate[1];
+  var _selDates = useState([]), selDates = _selDates[0], setSelDates = _selDates[1];
+  var _favs = useState([]), favs = _favs[0], setFavs = _favs[1];
+  var _showFavForm = useState(false), showFavForm = _showFavForm[0], setShowFavForm = _showFavForm[1];
+  var _favName = useState(''), favName = _favName[0], setFavName = _favName[1];
 
   function flash(msg) { setToast(msg); setTimeout(function(){setToast('');}, 3000); }
 
@@ -130,13 +182,7 @@ export default function ExpensePage() {
         if (res.data) {
           setReportId(res.data.id); setStatus(res.data.status);
           return supabase.from('expense_entries').select('*').eq('report_id', res.data.id).order('expense_date')
-            .then(function(eRes) {
-              var all = eRes.data || [];
-              var filtered = all.filter(function(e) {
-                return !(e.category === '旅費交通費' && (e.travel_method === '電車' || e.travel_method === 'バス'));
-              });
-              setEntries(filtered);
-            });
+            .then(function(eRes) { setEntries(eRes.data || []); });
         } else {
           return supabase.from('expense_monthly_reports')
             .insert({ user_id: auth.user.id, year: year, month: month, status: '下書き' })
@@ -151,26 +197,36 @@ export default function ExpensePage() {
       .finally(function() { setLoading(false); });
   }
 
-  useEffect(function() { loadData(); }, [auth.user, year, month]);
+  function loadFavs() {
+    if (!auth.user) return;
+    supabase.from('favorite_routes').select('*').eq('user_id', auth.user.id).order('route_name')
+      .then(function(res) { setFavs(res.data || []); })
+      .catch(function() {});
+  }
 
-  // APIキーをDBから読み込み
+  useEffect(function() { loadData(); loadFavs(); }, [auth.user, year, month]);
+
   useEffect(function() {
     supabase.from('system_settings').select('value').eq('key', 'anthropic_api_key').single()
-      .then(function(res) {
-        if (res.data) window.__apiKey = res.data.value;
-      }).catch(function(){});
+      .then(function(res) { if (res.data) window.__apiKey = res.data.value; }).catch(function(){});
   }, []);
 
-  // ---- 領収書系 ----
   function resetForm() {
     setExpDate(''); setCat('その他'); setAmt(''); setDesc('');
     setReceiptAmt(''); setAmtMismatchReason('');
     setTFrom(''); setTTo(''); setTMethod(''); setBookTitle(''); setTripType('片道');
     setReceiptData(''); setReceiptName(''); setInvoiceNum('');
-    setNoReceiptReason(''); setNoReceiptMode(false); setNoReceiptApproved(false);
-    setNoInvoiceMode(false); setNoInvoiceApproved(false); setPurchaseApproved(false);
+    setNoReceiptReason(''); setNoReceiptMode(false);
+    setNoInvoiceMode(false); setNoInvoiceReason('');
+    setPurchaseApproved(false);
     setEditId(null); setShowForm(false);
     if (fileRef.current) fileRef.current.value = '';
+  }
+
+  function resetTransport() {
+    setTMeth('電車'); setTF(''); setTT(''); setTTy('片道'); setTAm('');
+    setTEditId(null); setTEditDate(''); setSelDates([]); setShowTransport(false);
+    setShowFavForm(false); setFavName('');
   }
 
   function handleSingleFile(e) {
@@ -199,88 +255,32 @@ export default function ExpensePage() {
     });
   }
 
-  function handleBatchUpload(e) {
-    var files = Array.from(e.target.files);
-    if (!files.length) return;
-    var apiKey = getApiKey();
-    if (!apiKey) { flash('APIキー未設定です'); return; }
-    if (!reportId) return;
-    setUploading(true);
-    var total = files.length, succeeded = 0;
-    setUploadProgress('0 / '+total+' 処理中...');
-    function processNext(idx) {
-      if (idx >= files.length) {
-        setUploading(false); setUploadProgress('');
-        if (batchRef.current) batchRef.current.value = '';
-        flash(succeeded+'件登録'); loadData(); return;
-      }
-      var file = files[idx];
-      setUploadProgress((idx+1)+' / '+total+' ('+file.name+')');
-      fileToBase64(file).then(function(b64) {
-        return analyzeOneReceipt(b64, file.type||'image/png', apiKey).then(function(result) {
-          return supabase.from('expense_entries').insert({
-            report_id: reportId,
-            expense_date: result.date || (year+'-'+String(month).padStart(2,'0')+'-01'),
-            category: (result.category && CATEGORIES.indexOf(result.category)>=0) ? result.category : 'その他',
-            amount: Math.round(Number(result.amount)) || 0,
-            description: result.description || '', travel_from: result.travel_from || '',
-            travel_to: result.travel_to || '', travel_method: result.travel_method || '',
-            book_title: result.book_title || '', receipt_data: b64, receipt_filename: file.name,
-            invoice_number: result.invoice_number || '',
-          });
-        }).then(function() { succeeded++; });
-      }).catch(function() {
-        return fileToBase64(file).then(function(b64) {
-          return supabase.from('expense_entries').insert({
-            report_id: reportId, expense_date: year+'-'+String(month).padStart(2,'0')+'-01',
-            category: 'その他', amount: 0, description: file.name+'（読取失敗）',
-            receipt_data: b64, receipt_filename: file.name,
-          });
-        }).then(function() { succeeded++; }).catch(function(){});
-      }).finally(function() { processNext(idx+1); });
-    }
-    processNext(0);
-  }
-
   function handleSave() {
     if (!expDate || !amt) { flash('日付と金額は必須です'); return; }
     var amount = Math.round(Number(amt)) || 0;
-    // 旅費交通費で発着点必須
-    if (cat === '旅費交通費') {
-      if (!tFrom || !tTo) { flash('旅費交通費の発着点は必須です'); return; }
-    }
-    // 領収書必須チェック
+    if (cat === '旅費交通費' && (!tFrom || !tTo)) { flash('旅費交通費の発着点は必須です'); return; }
     if (!receiptData && !noReceiptMode) { flash('領収書のアップロードは必須です。領収書がない場合は「領収書なしで申告」を選択してください'); return; }
     if (!receiptData && noReceiptMode && !noReceiptReason.trim()) { flash('領収書なしの理由を入力してください'); return; }
-    if (!receiptData && noReceiptMode && !noReceiptApproved) { flash('了承を得てから登録してください'); return; }
-    // インボイス番号チェック
     if (receiptData && !invoiceNum && !noInvoiceMode) { flash('インボイス番号を入力してください。番号がない場合は「インボイス番号なしで申告」を選択してください'); return; }
-    if (receiptData && !invoiceNum && noInvoiceMode && !noInvoiceApproved) { flash('了承を得てから登録してください'); return; }
-    // 3,000円以上は購買申請確認
+    if (receiptData && !invoiceNum && noInvoiceMode && !noInvoiceReason.trim()) { flash('インボイス番号なしの理由を入力してください'); return; }
     if (amount >= 3000 && !purchaseApproved) { flash('承認を得てから登録してください'); return; }
-    // 領収書金額と入力金額の不一致チェック
     if (receiptAmt && Math.round(Number(amt)) !== Math.round(Number(receiptAmt)) && !amtMismatchReason.trim()) {
       flash('領収書の金額（¥' + Number(receiptAmt).toLocaleString() + '）と入力金額（¥' + amount.toLocaleString() + '）が異なります。理由を入力してください');
       return;
     }
-    // 予約系経費: 利用月以降の申請チェック
     if (cat === '旅費交通費' && tMethod) {
       var expDt = new Date(expDate);
       var expM = expDt.getFullYear() * 12 + expDt.getMonth();
       var repM = year * 12 + (month - 1);
-      if (repM < expM) {
-        // レポート月が経費日付の月より前の場合はエラー（まだ利用していない）
-        flash('予約系経費は利用月以降に申請してください（経費日付: ' + expDate + '）');
-        return;
-      }
+      if (repM < expM) { flash('予約系経費は利用月以降に申請してください（経費日付: ' + expDate + '）'); return; }
     }
     setSaving(true);
     var descWithReason = desc;
     if (!receiptData && noReceiptMode && noReceiptReason.trim()) {
       descWithReason = (desc ? desc + ' ' : '') + '【領収書なし理由: ' + noReceiptReason.trim() + '】';
     }
-    if (receiptData && !invoiceNum && noInvoiceMode) {
-      descWithReason = (descWithReason ? descWithReason + ' ' : '') + '【インボイス番号なし: 責任者了承済】';
+    if (receiptData && !invoiceNum && noInvoiceMode && noInvoiceReason.trim()) {
+      descWithReason = (descWithReason ? descWithReason + ' ' : '') + '【インボイス番号なし理由: ' + noInvoiceReason.trim() + '】';
     }
     var data = {
       report_id: reportId, expense_date: expDate, category: cat,
@@ -299,17 +299,85 @@ export default function ExpensePage() {
       .finally(function() { setSaving(false); });
   }
 
+  // --- 交通費 ---
+  function toggleDate(dateStr) {
+    var idx = selDates.indexOf(dateStr);
+    if (idx >= 0) { var copy = selDates.slice(); copy.splice(idx, 1); setSelDates(copy); }
+    else { setSelDates(selDates.concat([dateStr])); }
+  }
+
+  function handleSaveTransport() {
+    if (!tF || !tT || !tAm) { flash('区間・金額は必須です'); return; }
+    if (tEditId) {
+      if (!tEditDate) { flash('日付が必要です'); return; }
+      setSaving(true);
+      supabase.from('expense_entries').update({
+        expense_date: tEditDate, category: '旅費交通費',
+        amount: Math.round(Number(tAm)) || 0,
+        travel_from: tF, travel_to: tT, travel_method: tMeth,
+        trip_type: tTy, receipt_data: '', receipt_filename: '',
+      }).eq('id', tEditId)
+        .then(function() { flash('更新しました'); resetTransport(); loadData(); })
+        .catch(function() { flash('更新失敗'); })
+        .finally(function() { setSaving(false); });
+      return;
+    }
+    if (selDates.length === 0) { flash('カレンダーから日付を選択してください'); return; }
+    setSaving(true);
+    var sorted = selDates.slice().sort();
+    var inserts = sorted.map(function(d) {
+      return {
+        report_id: reportId, expense_date: d, category: '旅費交通費',
+        amount: Math.round(Number(tAm)) || 0, description: '',
+        travel_from: tF, travel_to: tT, travel_method: tMeth,
+        trip_type: tTy, receipt_data: '', receipt_filename: '',
+      };
+    });
+    supabase.from('expense_entries').insert(inserts)
+      .then(function() { flash(sorted.length+'件の交通費を登録しました'); resetTransport(); loadData(); })
+      .catch(function() { flash('登録失敗'); })
+      .finally(function() { setSaving(false); });
+  }
+
+  function applyFav(fav) {
+    setTF(fav.travel_from); setTT(fav.travel_to);
+    setTMeth(fav.travel_method); setTAm(String(fav.amount));
+    setTTy(fav.trip_type);
+    flash('「'+fav.route_name+'」を適用');
+  }
+  function handleSaveFav() {
+    if (!favName.trim() || !tF || !tT || !tAm) { flash('ルート名・区間・金額を入力'); return; }
+    supabase.from('favorite_routes').insert({
+      user_id: auth.user.id, route_name: favName.trim(),
+      travel_from: tF, travel_to: tT, travel_method: tMeth,
+      amount: Math.round(Number(tAm)) || 0, trip_type: tTy,
+    }).then(function() { flash('お気に入りに登録'); setShowFavForm(false); setFavName(''); loadFavs(); })
+      .catch(function() { flash('登録失敗'); });
+  }
+  function deleteFav(id) {
+    if (!confirm('このルートを削除しますか？')) return;
+    supabase.from('favorite_routes').delete().eq('id', id)
+      .then(function() { flash('削除'); loadFavs(); });
+  }
+
   // ---- 共通 ----
   function handleEdit(e) {
-    setExpDate(e.expense_date); setCat(e.category); setAmt(String(e.amount));
-    setDesc(e.description); setTFrom(e.travel_from||''); setTTo(e.travel_to||'');
-    setTMethod(e.travel_method||''); setBookTitle(e.book_title||'');
-    setTripType(e.trip_type||'片道');
-    setReceiptData(e.receipt_data||''); setReceiptName(e.receipt_filename||'');
-    setInvoiceNum(e.invoice_number||'');
-    setReceiptAmt(e.receipt_amount ? String(e.receipt_amount) : '');
-    setAmtMismatchReason(e.amount_mismatch_reason || '');
-    setEditId(e.id); setShowForm(true);
+    if (isTransportEntry(e)) {
+      setTMeth(e.travel_method); setTF(e.travel_from||'');
+      setTT(e.travel_to||''); setTTy(e.trip_type||'片道'); setTAm(String(e.amount));
+      setTEditId(e.id); setTEditDate(e.expense_date); setSelDates([]);
+      setShowTransport(true); setShowForm(false);
+    } else {
+      setExpDate(e.expense_date); setCat(e.category); setAmt(String(e.amount));
+      setDesc(e.description); setTFrom(e.travel_from||''); setTTo(e.travel_to||'');
+      setTMethod(e.travel_method||''); setBookTitle(e.book_title||'');
+      setTripType(e.trip_type||'片道');
+      setReceiptData(e.receipt_data||''); setReceiptName(e.receipt_filename||'');
+      setInvoiceNum(e.invoice_number||'');
+      setReceiptAmt(e.receipt_amount ? String(e.receipt_amount) : '');
+      setAmtMismatchReason(e.amount_mismatch_reason || '');
+      setEditId(e.id); setShowForm(true); setShowTransport(false);
+    }
     setDetailEntry(null);
   }
 
@@ -318,7 +386,6 @@ export default function ExpensePage() {
     supabase.from('expense_entries').delete().eq('id', id)
       .then(function() { flash('削除'); setDetailEntry(null); loadData(); });
   }
-
 
   function prevMonth(){if(month===1){setMonth(12);setYear(year-1);}else{setMonth(month-1);}}
   function nextMonth(){if(month===12){setMonth(1);setYear(year+1);}else{setMonth(month+1);}}
@@ -330,30 +397,19 @@ export default function ExpensePage() {
   var checkedIds = Object.keys(checked).filter(function(k){return checked[k];});
   var allChecked = entries.length > 0 && checkedIds.length === entries.length;
 
-  function toggleCheck(id) {
-    var next = Object.assign({}, checked);
-    next[id] = !next[id];
-    setChecked(next);
-  }
+  function toggleCheck(id) { var next = Object.assign({}, checked); next[id] = !next[id]; setChecked(next); }
   function toggleAll() {
     if (allChecked) { setChecked({}); }
-    else {
-      var next = {};
-      entries.forEach(function(e){next[e.id]=true;});
-      setChecked(next);
-    }
+    else { var next = {}; entries.forEach(function(e){next[e.id]=true;}); setChecked(next); }
   }
   function handleBatchDelete() {
     if (checkedIds.length === 0) { flash('削除する項目を選択してください'); return; }
     if (!confirm(checkedIds.length+'件を削除しますか？')) return;
     setSaving(true);
-    Promise.all(checkedIds.map(function(id){
-      return supabase.from('expense_entries').delete().eq('id', id);
-    })).then(function(){
-      flash(checkedIds.length+'件削除しました');
-      setChecked({}); loadData();
-    }).catch(function(){ flash('削除に失敗しました'); })
-    .finally(function(){ setSaving(false); });
+    Promise.all(checkedIds.map(function(id){ return supabase.from('expense_entries').delete().eq('id', id); }))
+      .then(function(){ flash(checkedIds.length+'件削除しました'); setChecked({}); loadData(); })
+      .catch(function(){ flash('削除に失敗しました'); })
+      .finally(function(){ setSaving(false); });
   }
   function handleBatchDownloadReceipts() {
     var withReceipts = entries.filter(function(e){return e.receipt_data;});
@@ -370,10 +426,7 @@ export default function ExpensePage() {
         var a = document.createElement('a');
         a.href = url;
         a.download = (year+'-'+String(month).padStart(2,'0')+'-'+fmtDate(e.expense_date).replace(/\//g,'')+'-'+(e.category||'expense')+'.'+ext);
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
       }, i * 300);
     });
     flash(withReceipts.length+'件の領収書をダウンロード中...');
@@ -384,20 +437,21 @@ export default function ExpensePage() {
   // 詳細ビュー
   if (detailEntry) {
     var de = detailEntry;
+    var deIsTransport = isTransportEntry(de);
     return (
       <div className="expense-page">
         {toast && <div className="toast">{toast}</div>}
         <div className="month-header">
           <button className="btn-ghost" onClick={function(){setDetailEntry(null);}}>← 戻る</button>
-          <h2 className="month-title">経費詳細</h2>
+          <h2 className="month-title">{deIsTransport ? '交通費詳細' : '経費詳細'}</h2>
         </div>
         <div className="card">
           <div className="trip-detail-grid">
             <div className="trip-detail-item"><span className="trip-detail-label">日付</span><span className="trip-detail-value">{fmtDate(de.expense_date)}</span></div>
             <div className="trip-detail-item"><span className="trip-detail-label">費目</span><span className="trip-detail-value"><span className={'expense-cat expense-cat-'+de.category}>{de.category}</span></span></div>
             <div className="trip-detail-item"><span className="trip-detail-label">金額</span><span className="trip-detail-value">¥{de.amount.toLocaleString()}</span></div>
-            {de.receipt_amount > 0 && (<div className="trip-detail-item"><span className="trip-detail-label">領収書金額</span><span className="trip-detail-value">¥{de.receipt_amount.toLocaleString()}</span></div>)}
-            {de.receipt_amount > 0 && de.amount !== de.receipt_amount && (
+            {!deIsTransport && de.receipt_amount > 0 && (<div className="trip-detail-item"><span className="trip-detail-label">領収書金額</span><span className="trip-detail-value">¥{de.receipt_amount.toLocaleString()}</span></div>)}
+            {!deIsTransport && de.receipt_amount > 0 && de.amount !== de.receipt_amount && (
               <div className="trip-detail-item" style={{gridColumn:'1/-1'}}>
                 <div className="amt-mismatch-box">
                   <div className="amt-mismatch-header">⚠️ 領収書金額（¥{de.receipt_amount.toLocaleString()}）と申請金額（¥{de.amount.toLocaleString()}）が異なります</div>
@@ -408,35 +462,20 @@ export default function ExpensePage() {
             {de.category==='旅費交通費'&&de.travel_from&&(<div className="trip-detail-item"><span className="trip-detail-label">区間</span><span className="trip-detail-value">{de.travel_from} → {de.travel_to}</span></div>)}
             {de.category==='旅費交通費'&&de.travel_method&&(<div className="trip-detail-item"><span className="trip-detail-label">交通手段</span><span className="trip-detail-value">{de.travel_method}</span></div>)}
             {de.category==='旅費交通費'&&de.trip_type&&(<div className="trip-detail-item"><span className="trip-detail-label">片道/往復</span><span className="trip-detail-value">{de.trip_type}</span></div>)}
-            {de.category==='旅費交通費'&&(!de.travel_from||!de.travel_to)&&(
-              <div className="trip-detail-item" style={{gridColumn:'1/-1'}}>
-                <div className="missing-field-warning-box">
-                  {!de.travel_from && <div className="missing-field-warning-detail">⚠️ 出発地を入力してください！</div>}
-                  {!de.travel_to && <div className="missing-field-warning-detail">⚠️ 到着地を入力してください！</div>}
-                </div>
-              </div>
-            )}
             {de.category==='書籍代'&&de.book_title&&(<div className="trip-detail-item"><span className="trip-detail-label">書籍名</span><span className="trip-detail-value">{de.book_title}</span></div>)}
-            {de.category==='書籍代'&&!de.book_title&&(
-              <div className="trip-detail-item" style={{gridColumn:'1/-1'}}>
-                <div className="missing-field-warning-box">
-                  <div className="missing-field-warning-detail">⚠️ 書籍名を入力してください！</div>
-                </div>
-              </div>
-            )}
-            {de.category!=='旅費交通費'&&de.description&&(<div className="trip-detail-item"><span className="trip-detail-label">内容</span><span className="trip-detail-value">{de.description.replace(/【領収書なし理由: .+?】/g,'').replace(/【インボイス番号なし: 責任者了承済】/g,'').trim()}</span></div>)}
-            {de.receipt_data && (<div className="trip-detail-item"><span className="trip-detail-label">インボイス番号</span><span className="trip-detail-value">{de.invoice_number ? de.invoice_number : (hasNoInvoiceApproval(de.description) ? <span className="no-invoice-approved-detail">なし（責任者了承済）</span> : <span className="invoice-warning-inline">⚠️ 未登録</span>)}</span></div>)}
-            {!de.receipt_data && (
+            {de.category!=='旅費交通費'&&de.description&&(<div className="trip-detail-item"><span className="trip-detail-label">内容</span><span className="trip-detail-value">{de.description.replace(/【領収書なし理由: .+?】/g,'').replace(/【インボイス番号なし理由: .+?】/g,'').replace(/【インボイス番号なし: 責任者了承済】/g,'').trim()}</span></div>)}
+            {deIsTransport && (<div className="transport-no-receipt"><span>🚃 電車・バスの交通費のため領収書不要</span></div>)}
+            {!deIsTransport && de.receipt_data && (<div className="trip-detail-item"><span className="trip-detail-label">インボイス番号</span><span className="trip-detail-value">{de.invoice_number ? de.invoice_number : (extractNoInvoiceReason(de.description) ? <span className="no-invoice-approved-detail">なし（理由: {extractNoInvoiceReason(de.description)}）</span> : hasNoInvoiceApproval(de.description) ? <span className="no-invoice-approved-detail">なし（責任者了承済）</span> : <span className="invoice-warning-inline">⚠️ 未登録</span>)}</span></div>)}
+            {!deIsTransport && !de.receipt_data && (
               <div className="trip-detail-item" style={{gridColumn:'1/-1'}}>
                 <div className="no-receipt-detail-box">
                   <div className="no-receipt-detail-header">📎 領収書なし（例外申告）</div>
                   {extractNoReceiptReason(de.description) && <div className="no-receipt-detail-reason">理由: {extractNoReceiptReason(de.description)}</div>}
-                  <div className="no-receipt-detail-approved">✅ 責任者了承済</div>
                 </div>
               </div>
             )}
           </div>
-          {de.receipt_data && (
+          {!deIsTransport && de.receipt_data && (
             <div className="receipt-preview-section">
               <h3 className="trip-breakdown-title">領収書</h3>
               <div className="receipt-preview-box">
@@ -462,7 +501,6 @@ export default function ExpensePage() {
   return (
     <div className="expense-page">
       {toast && <div className="toast">{toast}</div>}
-
       <div className="month-header">
         <div className="month-nav">
           <button className="btn-icon" onClick={prevMonth}>◀</button>
@@ -475,20 +513,108 @@ export default function ExpensePage() {
         </div>
       </div>
 
+      {/* 経費タイプ選択ボタン */}
       {isEditable && (
         <div className="expense-actions-row">
           <div className="expense-btn-row">
-            <button className={'expense-tab-btn'+(showForm?' expense-tab-active':'')} onClick={function(){setShowForm(!showForm);}}>
-              ✏️ 経費を追加 ※領収書必須
+            <button className={'expense-tab-btn'+(showTransport?' expense-tab-active':'')} onClick={function(){
+              if (showTransport) { resetTransport(); } else { resetForm(); setShowTransport(true); setShowForm(false); }
+            }}>
+              🚃 交通費を追加（電車・バス）※領収書不要
+            </button>
+            <button className={'expense-tab-btn'+(showForm?' expense-tab-active':'')} onClick={function(){
+              if (showForm) { resetForm(); } else { resetTransport(); setShowForm(true); setShowTransport(false); }
+            }}>
+              ✏️ その他経費を追加 ※領収書必要
             </button>
           </div>
         </div>
       )}
 
-      {/* 経費フォーム */}
+      {/* 交通費入力フォーム */}
+      {showTransport && isEditable && (
+        <div className="card" style={{marginBottom:'16px'}}>
+          <h3 className="card-title">{tEditId ? '交通費を編集' : '🚃 交通費（電車・バス）— 領収書不要'}</h3>
+          {favs.length > 0 && (
+            <div className="fav-routes">
+              <span className="fav-routes-label">⭐ お気に入りルート：</span>
+              <div className="fav-routes-list">
+                {favs.map(function(f) {
+                  return (
+                    <div key={f.id} className="fav-route-chip">
+                      <button className="fav-route-btn" onClick={function(){applyFav(f);}}>
+                        {f.route_name}<span className="fav-route-info"> ({f.travel_from}→{f.travel_to} ¥{f.amount.toLocaleString()})</span>
+                      </button>
+                      <button className="fav-route-del" onClick={function(){deleteFav(f.id);}}>×</button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          <div className="transport-form-layout">
+            <div className="transport-form-left">
+              <div className="expense-form-grid" style={{gridTemplateColumns:'1fr 1fr'}}>
+                <div className="form-group"><label className="form-label">交通手段</label>
+                  <select className="form-select" value={tMeth} onChange={function(e){setTMeth(e.target.value);}}>
+                    {TRANSPORT_METHODS.map(function(m){return <option key={m} value={m}>{m}</option>;})}
+                  </select>
+                </div>
+                <div className="form-group"><label className="form-label">片道/往復</label>
+                  <select className="form-select" value={tTy} onChange={function(e){setTTy(e.target.value);}}>
+                    <option value="片道">片道</option><option value="往復">往復</option>
+                  </select>
+                </div>
+              </div>
+              <div className="expense-form-grid" style={{marginTop:'8px',gridTemplateColumns:'1fr 1fr 1fr'}}>
+                <div className="form-group"><label className="form-label">出発地</label><input className="form-input" value={tF} onChange={function(e){setTF(e.target.value);}} placeholder="例: 宇都宮駅" /></div>
+                <div className="form-group"><label className="form-label">到着地</label><input className="form-input" value={tT} onChange={function(e){setTT(e.target.value);}} placeholder="例: 東京駅" /></div>
+                <div className="form-group"><label className="form-label">金額（円）</label><input className="form-input" type="number" value={tAm} onChange={function(e){setTAm(e.target.value);}} placeholder="0" /></div>
+              </div>
+              {!tEditId && tF && tT && tAm && (
+                <div style={{marginTop:'12px'}}>
+                  {!showFavForm ? (
+                    <button className="btn-outline" style={{fontSize:'12px'}} onClick={function(){setShowFavForm(true);}}>⭐ このルートをお気に入りに登録</button>
+                  ) : (
+                    <div className="fav-save-form">
+                      <input className="form-input" value={favName} onChange={function(e){setFavName(e.target.value);}} placeholder="ルート名（例: 自宅→本社）" style={{maxWidth:'250px'}} />
+                      <button className="btn-primary" style={{width:'auto',padding:'8px 16px'}} onClick={handleSaveFav}>保存</button>
+                      <button className="btn-outline" onClick={function(){setShowFavForm(false);}}>✕</button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="transport-form-right">
+              {tEditId ? (
+                <div><label className="form-label">利用日</label><input className="form-input" type="date" value={tEditDate} onChange={function(e){setTEditDate(e.target.value);}} /></div>
+              ) : (
+                <div>
+                  <label className="form-label">利用日を選択（複数可）</label>
+                  <DateCalendar year={year} month={month} selected={selDates} onToggle={toggleDate} />
+                  {selDates.length > 0 && (
+                    <div className="cal-selected-info">
+                      {selDates.length}日選択中
+                      {tAm && <span> — 合計 ¥{(selDates.length * (Math.round(Number(tAm))||0)).toLocaleString()}</span>}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+          <div style={{display:'flex',gap:'8px',marginTop:'16px'}}>
+            <button className="btn-primary" style={{width:'auto',padding:'10px 24px'}} onClick={handleSaveTransport} disabled={saving}>
+              {saving ? '保存中...' : tEditId ? '更新' : selDates.length+'日分を登録'}
+            </button>
+            <button className="btn-outline" onClick={resetTransport}>キャンセル</button>
+          </div>
+        </div>
+      )}
+
+      {/* その他経費フォーム */}
       {showForm && isEditable && (
         <div className="card" style={{marginBottom:'16px'}}>
-          <h3 className="card-title">{editId ? '経費を編集' : '✏️ 経費を追加'}</h3>
+          <h3 className="card-title">{editId ? '経費を編集' : '✏️ その他経費を追加'}</h3>
           <div className="receipt-upload">
             <label className="receipt-label receipt-label-required">
               {uploading ? ('🔄 '+uploadProgress) : '📎 領収書を添付（複数可）※必須'}
@@ -496,7 +622,6 @@ export default function ExpensePage() {
                 var files = Array.from(e.target.files);
                 if (!files.length) return;
                 if (files.length === 1) { handleSingleFile(e); return; }
-                /* 複数ファイル → 一括登録 */
                 var apiKey = getApiKey();
                 if (!apiKey) { flash('APIキー未設定のため一括登録不可。1枚ずつ添付してください'); return; }
                 if (!reportId) return;
@@ -504,18 +629,13 @@ export default function ExpensePage() {
                 var total = files.length, succeeded = 0;
                 setUploadProgress('0 / '+total+' 処理中...');
                 function processNext(idx) {
-                  if (idx >= files.length) {
-                    setUploading(false); setUploadProgress('');
-                    if (fileRef.current) fileRef.current.value = '';
-                    flash(succeeded+'件登録'); loadData(); return;
-                  }
+                  if (idx >= files.length) { setUploading(false); setUploadProgress(''); if (fileRef.current) fileRef.current.value = ''; flash(succeeded+'件登録'); loadData(); return; }
                   var file = files[idx];
                   setUploadProgress((idx+1)+' / '+total+' ('+file.name+')');
                   fileToBase64(file).then(function(b64) {
                     return analyzeOneReceipt(b64, file.type||'image/png', apiKey).then(function(result) {
                       return supabase.from('expense_entries').insert({
-                        report_id: reportId,
-                        expense_date: result.date || (year+'-'+String(month).padStart(2,'0')+'-01'),
+                        report_id: reportId, expense_date: result.date || (year+'-'+String(month).padStart(2,'0')+'-01'),
                         category: (result.category && CATEGORIES.indexOf(result.category)>=0) ? result.category : 'その他',
                         amount: Math.round(Number(result.amount)) || 0,
                         description: result.description || '', travel_from: result.travel_from || '',
@@ -528,8 +648,7 @@ export default function ExpensePage() {
                     return fileToBase64(file).then(function(b64) {
                       return supabase.from('expense_entries').insert({
                         report_id: reportId, expense_date: year+'-'+String(month).padStart(2,'0')+'-01',
-                        category: 'その他', amount: 0, description: file.name,
-                        receipt_data: b64, receipt_filename: file.name,
+                        category: 'その他', amount: 0, description: file.name, receipt_data: b64, receipt_filename: file.name,
                       });
                     }).then(function() { succeeded++; });
                   }).finally(function() { processNext(idx + 1); });
@@ -554,14 +673,6 @@ export default function ExpensePage() {
                   <div className="form-group" style={{marginTop:'8px'}}>
                     <label className="form-label">領収書がない理由（必須）</label>
                     <input className="form-input" value={noReceiptReason} onChange={function(e){setNoReceiptReason(e.target.value);}} placeholder="例: 自販機での購入のため領収書なし" />
-                  </div>
-                  <div className="approval-check" style={{marginTop:'8px'}}>
-                    <label className="approval-label">責任者からの了承を得ていますか？</label>
-                    <div className="approval-btns">
-                      <button className={'approval-btn'+(noReceiptApproved?' approval-yes':'')} onClick={function(){setNoReceiptApproved(true);}}>はい</button>
-                      <button className={'approval-btn'+(!noReceiptApproved?' approval-no':'')} onClick={function(){setNoReceiptApproved(false);}}>いいえ</button>
-                    </div>
-                    {!noReceiptApproved && <span className="approval-warn">了承を得てから登録してください</span>}
                   </div>
                 </div>
               )}
@@ -615,15 +726,11 @@ export default function ExpensePage() {
                     <div className="no-receipt-form">
                       <div className="no-receipt-header">
                         <span className="no-receipt-badge">⚠️ インボイス番号なしで申告</span>
-                        <button className="btn-ghost" style={{fontSize:'11px'}} onClick={function(){setNoInvoiceMode(false);setNoInvoiceApproved(false);}}>取り消し</button>
+                        <button className="btn-ghost" style={{fontSize:'11px'}} onClick={function(){setNoInvoiceMode(false);setNoInvoiceReason('');}}>取り消し</button>
                       </div>
-                      <div className="approval-check" style={{marginTop:'8px'}}>
-                        <label className="approval-label">責任者からの了承を得ていますか？</label>
-                        <div className="approval-btns">
-                          <button className={'approval-btn'+(noInvoiceApproved?' approval-yes':'')} onClick={function(){setNoInvoiceApproved(true);}}>はい</button>
-                          <button className={'approval-btn'+(!noInvoiceApproved?' approval-no':'')} onClick={function(){setNoInvoiceApproved(false);}}>いいえ</button>
-                        </div>
-                        {!noInvoiceApproved && <span className="approval-warn">了承を得てから登録してください</span>}
+                      <div className="form-group" style={{marginTop:'8px'}}>
+                        <label className="form-label">インボイス番号がない理由（必須）</label>
+                        <input className="form-input" value={noInvoiceReason} onChange={function(e){setNoInvoiceReason(e.target.value);}} placeholder="例: 個人事業主のため未登録" />
                       </div>
                     </div>
                   )}
@@ -631,7 +738,6 @@ export default function ExpensePage() {
               )}
             </div>
           )}
-          {/* 3,000円以上の購買申請確認 */}
           {amt && Number(amt) >= 3000 && (
             <div className="approval-check" style={{marginTop:'12px'}}>
               <label className="approval-label">購買申請承認済みですか？</label>
@@ -654,7 +760,6 @@ export default function ExpensePage() {
         <div className="card"><p className="empty-state">この月の経費記録はありません。</p></div>
       ) : (
         <>
-          {/* 一括操作バー */}
           <div className="batch-action-bar">
             <div className="batch-action-left">
               {checkedIds.length > 0 && isEditable && (
@@ -677,9 +782,11 @@ export default function ExpensePage() {
               </tr></thead>
               <tbody>
                 {entries.map(function(e){
-                  var rowWarnings = getMissingFieldWarnings(e);
-                  var noReceiptReason = extractNoReceiptReason(e.description);
-                  var noInvoiceApproved = hasNoInvoiceApproval(e.description);
+                  var rowWarnings = isTransportEntry(e) ? [] : getMissingFieldWarnings(e);
+                  var noRcptReason = extractNoReceiptReason(e.description);
+                  var noInvReason = extractNoInvoiceReason(e.description);
+                  var noInvApproved = hasNoInvoiceApproval(e.description);
+                  var eIsTransport = isTransportEntry(e);
                   return (
                     <tr key={e.id} className={'admin-table-row'+(checked[e.id]?' row-checked':'')} style={{cursor:'pointer'}} onClick={function(){setDetailEntry(e);}}>
                       {isEditable && (
@@ -688,19 +795,21 @@ export default function ExpensePage() {
                         </td>
                       )}
                       <td style={{textAlign:'center'}}>{fmtDate(e.expense_date)}</td>
-                      <td style={{textAlign:'center'}}><span className={'expense-cat expense-cat-'+e.category}>{e.category}</span></td>
+                      <td style={{textAlign:'center'}}><span className={'expense-cat expense-cat-'+e.category}>{eIsTransport ? '🚃 '+e.travel_method : e.category}</span></td>
                       <td style={{textAlign:'left'}}>{getDetail(e)}{rowWarnings.length > 0 && <div className="missing-field-warning">{rowWarnings.join(' / ')}</div>}</td>
-                      <td style={{textAlign:'center'}}>{e.receipt_data ? (e.invoice_number ? '📎' : '⚠️') : (noReceiptReason ? <span className="no-receipt-badge-inline" title={noReceiptReason}>なし</span> : '')}</td>
+                      <td style={{textAlign:'center'}}>
+                        {eIsTransport ? <span style={{fontSize:'10px',color:'#94a3b8'}}>不要</span>
+                          : e.receipt_data ? (e.invoice_number ? '📎' : '⚠️')
+                          : (noRcptReason ? <span className="no-receipt-badge-inline" title={noRcptReason}>なし</span> : '')}
+                      </td>
                       <td style={{textAlign:'center',fontSize:'11px',fontFamily:'var(--mono)'}}>
-                        {e.invoice_number
-                          ? e.invoice_number
+                        {eIsTransport ? <span style={{fontSize:'10px',color:'#94a3b8'}}>—</span>
+                          : e.invoice_number ? e.invoice_number
                           : e.receipt_data
-                            ? (noInvoiceApproved
-                              ? <span className="no-invoice-approved-inline">なし(了承済)</span>
+                            ? (noInvReason ? <span className="no-invoice-approved-inline" title={'理由: '+noInvReason}>なし(理由有)</span>
+                              : noInvApproved ? <span className="no-invoice-approved-inline">なし(了承済)</span>
                               : <span className="invoice-warning-inline">未登録</span>)
-                            : (noReceiptReason
-                              ? <span className="no-receipt-reason-inline" title={noReceiptReason}>領収書なし</span>
-                              : '')}
+                            : (noRcptReason ? <span className="no-receipt-reason-inline" title={noRcptReason}>領収書なし</span> : '')}
                       </td>
                       <td style={{textAlign:'right',fontFamily:'var(--mono)',fontWeight:600}}>¥{e.amount.toLocaleString()}</td>
                       {isEditable && (

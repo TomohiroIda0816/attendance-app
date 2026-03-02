@@ -40,13 +40,10 @@ function headerCell(v) {
   return cell(v, { fill: HEADER_FILL, font: HEADER_FONT, alignment: { horizontal: 'center', vertical: 'center' } });
 }
 
-export function exportAttendanceExcel(rows, year, month, userName, transportEntries) {
-  transportEntries = transportEntries || [];
+export function exportAttendanceExcel(rows, year, month, userName) {
   var th = totalHours(rows);
   var wd = workDayCount(rows);
   var ot = totalOvertimeForExcel(rows);
-  var transportTotal = 0;
-  transportEntries.forEach(function(e) { transportTotal += e.amount; });
 
   var wb = XLSX.utils.book_new();
 
@@ -126,40 +123,6 @@ export function exportAttendanceExcel(rows, year, month, userName, transportEntr
   ];
 
   XLSX.utils.book_append_sheet(wb, ws, '勤怠報告書');
-
-  // --- Sheet2: 交通費 ---
-  if (transportEntries.length > 0) {
-    var tsData = [];
-    tsData.push([cell('交通費（電車・バス）', { font: { bold: true, sz: 14 }, alignment: { horizontal: 'center' } })]);
-    tsData.push([]);
-
-    var tHeaders = ['日付', '手段', '区間', '種別', '金額'];
-    tsData.push(tHeaders.map(function(h) { return headerCell(h); }));
-
-    transportEntries.forEach(function(e) {
-      var dt = e.expense_date ? new Date(e.expense_date) : null;
-      var ds = dt ? (dt.getMonth() + 1) + '/' + dt.getDate() : '';
-      tsData.push([
-        cell(ds, { alignment: { horizontal: 'center' } }),
-        cell(e.travel_method || '', { alignment: { horizontal: 'center' } }),
-        cell((e.travel_from || '') + '→' + (e.travel_to || ''), { alignment: { horizontal: 'left' } }),
-        cell(e.trip_type || '', { alignment: { horizontal: 'center' } }),
-        cell('¥' + e.amount.toLocaleString(), { font: { bold: true }, alignment: { horizontal: 'right' } }),
-      ]);
-    });
-
-    // Total row
-    tsData.push([
-      cell(''), cell(''), cell(''),
-      cell('交通費合計', { font: { bold: true, sz: 11 }, alignment: { horizontal: 'right' } }),
-      cell('¥' + transportTotal.toLocaleString(), { font: { bold: true, sz: 12 }, alignment: { horizontal: 'right' } }),
-    ]);
-
-    var ts = XLSX.utils.aoa_to_sheet(tsData);
-    ts['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 4 } }];
-    ts['!cols'] = [{ wch: 10 }, { wch: 8 }, { wch: 25 }, { wch: 10 }, { wch: 12 }];
-    XLSX.utils.book_append_sheet(wb, ts, '交通費');
-  }
 
   var fileName = '勤怠報告書_' + year + '年' + month + '月_' + userName + '.xlsx';
   XLSX.writeFile(wb, fileName);
